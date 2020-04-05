@@ -28,6 +28,11 @@ sys_set_cfs_priority(void){
 }
 
 int
+sys_memsize(void){
+  return memsize();
+}
+
+int
 sys_fork(void)
 {
   return fork();

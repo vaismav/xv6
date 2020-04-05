@@ -123,6 +123,7 @@ void            yield(void);
 // proc.c add functions
 int             set_cfs_priority(int);      //By Avishai
 int             set_ps_priority(int);       //By Maya
+int             memsize(void);              //Avishai          
 
 // swtch.S
 void            swtch(struct context**, struct context*);

@@ -189,6 +189,12 @@ growproc(int n)
   return 0;
 }
 
+int
+memsize(void){
+  struct proc *p = myproc();
+  return p->sz;
+}
+
 // Create a new process copying p as the parent.
 // Sets up stack to return as if from system call.
 // Caller must set state of returned proc to RUNNABLE.
@@ -386,7 +392,7 @@ scheduler(void)
       if(p->state != RUNNABLE)
         continue;
       break;
-      
+
     default:
       cprintf("Error!  sched_type = %d.\nshecdualing by default\n",sched_type);
       for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
