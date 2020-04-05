@@ -7,9 +7,19 @@
 #include "mmu.h"
 #include "proc.h"
 
+
+int
+sys_policy(void){
+  int policy_num;
+  if(argint(0, &policy_num) <0)
+    return -1;
+  policy(policy_num);
+  return 0;
+}
+
 int
 sys_set_ps_priority(void)
-{                           //ass4
+{                            //Priority set 4.2
   int new_priority;
   if(argint(0, &new_priority) <0)
     return -1;
@@ -17,9 +27,17 @@ sys_set_ps_priority(void)
   return 0;
 }
 
+int
+sys_proc_info(void){          //The proc info 4.5
+  struct perf* preformance;
+  if(argptr(0,(char **)(&preformance),16)<0)
+    return -1;
+  return proc_info(preformance);
+
+}
 
 int 
-sys_set_cfs_priority(void){
+sys_set_cfs_priority(void){     //cfs priority 4.3
   int new_priority;
   if(argint(0, &new_priority) <0)
     return -1;

@@ -10,6 +10,9 @@ struct sleeplock;
 struct stat;
 struct superblock;
 
+
+
+
 // bio.c
 void            binit(void);
 struct buf*     bread(uint, uint);
@@ -124,7 +127,8 @@ void            yield(void);
 int             set_cfs_priority(int);      //By Avishai
 int             set_ps_priority(int);       //By Maya
 int             memsize(void);              //Avishai
-//double          decayFactor[4]={0.0,0.75,1.0,1.25};   // Decay Factors for SCF @Avishai       
+int             policy(int);                //By Maya
+int             proc_info(struct perf*);    //By Maya
 
 // swtch.S
 void            swtch(struct context**, struct context*);

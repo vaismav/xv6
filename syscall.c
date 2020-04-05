@@ -106,6 +106,8 @@ extern int sys_uptime(void);
 extern int sys_memsize(void);
 extern int sys_set_ps_priority(void);
 extern int sys_set_cfs_priority(void);
+extern int sys_policy(void);
+extern int sys_proc_info(void);
 
 static int (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -132,6 +134,8 @@ static int (*syscalls[])(void) = {
 [SYS_memsize] sys_memsize,
 [SYS_set_ps_priority] sys_set_ps_priority,
 [SYS_set_cfs_priority] sys_set_cfs_priority,
+[SYS_policy] sys_policy,
+[SYS_proc_info] sys_proc_info,
 };
 
 void

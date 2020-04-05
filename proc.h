@@ -53,9 +53,10 @@ struct proc {
   //Added content
   long long accumulator;       // Process accumulator 4.2
   int ps_priority;             // Process priority  4.2
-  long rtime;                  // Time process was in running state
-  long stime;                  // Time process was in sleeping state.
-  long retime;                 // Time process was in ready/runnable state.
+  int cfs_priority;            // CFS sechdule priority
+  int rtime;                  // Time process was in running state
+  int stime;                  // Time process was in sleeping state.
+  int retime;                 // Time process was in ready/runnable state.
 };
 
 // Process memory is laid out contiguously, low addresses first:
@@ -63,3 +64,9 @@ struct proc {
 //   original data and bss
 //   fixed-size stack
 //   expandable heap
+
+/**void updateCFSstatistics(struct proc *p)
+ * update the cfs data of @para p process
+ * By Avishai
+ */
+void updateCFSstatistics();

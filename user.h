@@ -1,6 +1,7 @@
 struct stat;
 struct rtcdate;
 
+
 // system calls
 int fork(void);
 int exit(int) __attribute__((noreturn));
@@ -25,7 +26,9 @@ int sleep(int);
 int uptime(void);
 int memsize(void);
 int set_ps_priority(int);       //Priority set for priority sched
-int set_cfs_priority(int);     //Priority set sys call for the CFS sched
+int set_cfs_priority(int);      //Priority set sys call for the CFS sched
+int policy(int);                //The policy we are in
+int proc_info(struct perf*);    //Extract Information and present to the user
 
 // ulib.c
 int stat(const char*, struct stat*);

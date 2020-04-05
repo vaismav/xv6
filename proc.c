@@ -21,6 +21,27 @@ extern void trapret(void);
 
 static void wakeup1(void *chan);
 
+void 
+updateCFSstatistics(){
+  struct proc *p;
+  acquire(&ptable.lock);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+  switch (p->state)
+    {
+    case RUNNABLE:     
+      p->retime ++;   //Increase the value of the time the process was ready to run 
+      break;
+    case SLEEPING:
+      p->stime ++;  //Increase the value of the process sleep time indicator
+      break;
+    case RUNNING:
+      p->rtime ++;  //Increase the value of the process running time indicator
+      break;
+    }
+  }
+  release(&ptable.lock);
+}
+
 void
 pinit(void)
 {
@@ -90,8 +111,9 @@ found:
   p->state = EMBRYO;
   p->pid = nextpid++;
 
-  //Set priotity an accumulator of new process
+  //Handle Priority Scheduling fields
   p->ps_priority=5; //priority of a new process in priority schedualer
+  
   //accumulator set  to a new process
   long long acc=LLONG_MAX;
   struct proc *q; 
@@ -102,7 +124,13 @@ found:
     }
   }
   p->accumulator=acc;
-  //End of priotity an accumulator
+  
+  //Handle Completely Fair Scheduling fields
+  struct proc *currProc=myproc();
+  p->cfs_priority = currProc->cfs_priority;
+  p->retime = 0;
+  p->rtime = 0;
+  p->stime = 0;
 
   release(&ptable.lock);
 
@@ -156,6 +184,20 @@ userinit(void)
 
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
+
+  //Set Up initial process scheduling fields:
+  //Priority Scheduling fields
+  p->ps_priority = 5;
+  p->accumulator = 0;
+  //Comlily Fair Schedualing
+  p->cfs_priority = 2;      //initialize the init process to normal defactor
+  p->rtime = 0;
+  p->retime = 0;
+  p->stime = 0;
+
+  //Insuring sched_type is 0 (although it shoud be with defined with 0 upon declaretion)
+  sched_type = 0;
+  
 
   // this assignment to p->state lets other cores
   // run this process. the acquire forces the above
@@ -345,6 +387,21 @@ set_ps_priority(int priority)     //priority 4.2
   return 0;
 }
 
+int
+proc_info(struct perf *preformance){
+    struct perf *my_performance;
+    my_performance->ps_priority=preformance->ps_priority;
+    my_performance->stime=preformance->stime;
+    my_performance->retime=preformance->retime;
+    my_performance->rtime=preformance->rtime;
+    return 0;
+}
+
+int
+policy(int policy_num){   // TODO: is this right?
+  sched_type=policy_num;
+  return 0;
+}
 
 /**CSF priority for task 4.3 in assinment 1
  * 1. High priority – Decay factor = 0.75
@@ -358,7 +415,7 @@ set_cfs_priority(int priority){
     return -1;
   }
   struct proc *curproc = myproc();
-  curproc->ps_priority=priority;
+  curproc->cfs_priority=priority;
   return 0;
 }
 
@@ -380,7 +437,7 @@ scheduler(void)
   c->proc = 0;
 
   //additional settings by Maya And Avishai
-  struct proc *cuur_proc;
+  struct proc *curr_proc;
   long long acc_min=LLONG_MAX;
   int foundProcess;                          //boolian to indicat if found a procces to run
   int foundRUNNABLE;                         //boolian to indicat if schedualer found a RUNNABLE Process
@@ -395,65 +452,51 @@ scheduler(void)
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-    // switch (sched_type)
-    // {
-    // case 0: //default round robin
+
     foundProcess = 0; 
     foundRUNNABLE = 0;
     pRunTimeRatio = 9999999999.0;
-    for(cuur_proc = ptable.proc; cuur_proc < &ptable.proc[NPROC]; cuur_proc++){
-      // for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-        switch (sched_type)
+    for(curr_proc = ptable.proc; curr_proc < &ptable.proc[NPROC]; curr_proc++){
+       switch (sched_type)
        {
-        case 0:
-            if(cuur_proc->state == RUNNABLE){
-              p=cuur_proc;
-              foundProcess = 1;
-              foundRUNNABLE = 1;
-            }
-            break;
         case 1:
-            if(acc_min>(cuur_proc->accumulator) && cuur_proc->state == RUNNABLE){
-              acc_min=cuur_proc->accumulator;
-              p=cuur_proc;
+
+            if(acc_min>(curr_proc->accumulator) && curr_proc->state == RUNNABLE){
+              acc_min=curr_proc->accumulator;
+              p=curr_proc;
             }
             foundRUNNABLE = 1;
             foundProcess = 1;
             break;
         case 2:
-          switch (cuur_proc->state)
-          {
-          case RUNNABLE:
+          if (curr_proc->state = RUNNABLE){
             foundRUNNABLE = 1;
-            cuur_proc->retime ++;   //Increase the value of the time the process was ready to run 
-            currRunTimeRatio =(((double)cuur_proc->rtime)*decayFactor[cuur_proc->ps_priority])
-                                      /(double)((cuur_proc->retime) + (cuur_proc->rtime) + (cuur_proc->stime));
+            currRunTimeRatio =(((double)curr_proc->rtime)*decayFactor[curr_proc->cfs_priority])
+                                      /(double)((curr_proc->retime) + (curr_proc->rtime) + (curr_proc->stime));
             if(currRunTimeRatio < pRunTimeRatio){
-              p = cuur_proc;
+              p = curr_proc;
               pRunTimeRatio = currRunTimeRatio;
             }
-            break;
-          case SLEEPING:
-            cuur_proc->stime ++;  //Increase the value of the process sleep time indicator
-            break;
-          case RUNNING:
-            cuur_proc->rtime ++;  //Increase the value of the process running time indicator
-            break;
           }
-
           //At the end of ptable.proc  
-          if(cuur_proc == &ptable.proc[NPROC-1] && foundRUNNABLE)
+          if(curr_proc == &ptable.proc[NPROC-1] && foundRUNNABLE)
             foundProcess = 1;
           break;
 
         default:
-          cprintf("Error!  sched_type = %d.\nshecdualing by default\n",sched_type);
-          if(cuur_proc->state == RUNNABLE){
-              p=cuur_proc;
-              foundProcess = 1;
-              foundRUNNABLE = 1;
-            }
+            //the scheduler will update p only in the first time it reach a RUNNABLE process
+            if(curr_proc->state == RUNNABLE && !foundRUNNABLE){ //in the default sched as round robin we want
+              p=curr_proc;                                      //to go through all the ptable to update the cfs statistics
+              foundRUNNABLE = 1;                                //therefore if we found a RUNNABLE process we dont want to
+            }                                                   //to switch to it until updating the intire ptable
+
+            //At the end of ptable.proc  if we found a 
+          if(curr_proc == &ptable.proc[NPROC-1] && foundRUNNABLE)
+            foundProcess = 1;
+            break;
        }
+
+
        if(!foundProcess)
           continue;
     
