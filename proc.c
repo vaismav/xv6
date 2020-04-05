@@ -416,6 +416,17 @@ scheduler(void)
       
       switchkvm();
       p->accumulator=(p->accumulator)+(p->ps_priority);// accumulator update, process finished quantom
+            // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
+    }
+    release(&ptable.lock);
+
+  }
+}
+
+// Enter scheduler.  Must hold only ptable.lock
+// and have changed proc->state. Saves and restores
 // intena because intena is a property of this
 // kernel thread, not this CPU. It should
 // be proc->intena and proc->ncli, but that would
