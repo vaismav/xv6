@@ -170,7 +170,6 @@ UPROGS=\
 	_echo\
 	_helloworld\
 	_policy\
-	_test\
 	_testtest\
 	_forktest\
 	_grep\

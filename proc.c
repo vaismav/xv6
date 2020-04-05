@@ -37,6 +37,8 @@ updateCFSstatistics(){
     case RUNNING:
       p->rtime ++;  //Increase the value of the process running time indicator
       break;
+      default:
+      break;
     }
   }
   release(&ptable.lock);
@@ -102,12 +104,15 @@ allocproc(void)
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if(p->state == UNUSED)
+    cprintf("p state unused pid %d \n",p->pid);
       goto found;
 
   release(&ptable.lock);
   return 0;
 
 found:
+
+    cprintf("p state embryo  pid %d \n",p->pid);
   p->state = EMBRYO;
   p->pid = nextpid++;
 
@@ -265,7 +270,7 @@ fork(void)
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
-
+  
   for(i = 0; i < NOFILE; i++)
     if(curproc->ofile[i])
       np->ofile[i] = filedup(curproc->ofile[i]);
@@ -389,11 +394,12 @@ set_ps_priority(int priority)     //priority 4.2
 
 int
 proc_info(struct perf *preformance){
-    struct perf *my_performance;
-    my_performance->ps_priority=preformance->ps_priority;
-    my_performance->stime=preformance->stime;
-    my_performance->retime=preformance->retime;
-    my_performance->rtime=preformance->rtime;
+  struct proc *curproc = myproc();
+  preformance->retime=curproc->retime;
+  preformance->rtime=curproc->rtime;
+  preformance->stime=curproc->stime;
+  preformance->ps_priority=curproc->ps_priority;
+   
     return 0;
 }
 
@@ -432,6 +438,7 @@ set_cfs_priority(int priority){
 void
 scheduler(void)
 {
+  cprintf("main process got in scheduler\n");
   struct proc *p;
   struct cpu *c = mycpu();
   c->proc = 0;
@@ -439,37 +446,42 @@ scheduler(void)
   //additional settings by Maya And Avishai
   struct proc *curr_proc;
   long long acc_min=LLONG_MAX;
-  int foundProcess;                          //boolian to indicat if found a procces to run
+  int canSwitch;                          //boolian to indicat if found a procces to run
   int foundRUNNABLE;                         //boolian to indicat if schedualer found a RUNNABLE Process
   double pRunTimeRatio;                      //will hold the value of the minimal time run ratio 
   double currRunTimeRatio;                   //hold the value of the current process time run ratio 
   double decayFactor[4]={0.0,0.75,1,1.25};   //array of CFS decay factors
   p=ptable.proc;
 
+  
+  
   for(;;){
+    //cprintf("got in infinity sched loop\n");
     // Enable interrupts on this processor.
     sti();
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
 
-    foundProcess = 0; 
+    canSwitch = 0; 
     foundRUNNABLE = 0;
     pRunTimeRatio = 9999999999.0;
     for(curr_proc = ptable.proc; curr_proc < &ptable.proc[NPROC]; curr_proc++){
+      //cprintf("outside for looop process got in scheduler\n");
        switch (sched_type)
        {
         case 1:
+        cprintf("case 1 process got in scheduler\n");
 
             if(acc_min>(curr_proc->accumulator) && curr_proc->state == RUNNABLE){
               acc_min=curr_proc->accumulator;
               p=curr_proc;
             }
             foundRUNNABLE = 1;
-            foundProcess = 1;
+            canSwitch = 1;
             break;
         case 2:
-          if (curr_proc->state = RUNNABLE){
+          if (curr_proc->state == RUNNABLE){
             foundRUNNABLE = 1;
             currRunTimeRatio =(((double)curr_proc->rtime)*decayFactor[curr_proc->cfs_priority])
                                       /(double)((curr_proc->retime) + (curr_proc->rtime) + (curr_proc->stime));
@@ -480,26 +492,32 @@ scheduler(void)
           }
           //At the end of ptable.proc  
           if(curr_proc == &ptable.proc[NPROC-1] && foundRUNNABLE)
-            foundProcess = 1;
+            canSwitch = 1;
           break;
 
         default:
+        cprintf("choose defult sched, check pid:%d, state:%d \n",curr_proc->pid,(int)curr_proc->state);
             //the scheduler will update p only in the first time it reach a RUNNABLE process
             if(curr_proc->state == RUNNABLE && !foundRUNNABLE){ //in the default sched as round robin we want
+              cprintf("found RUNNABLE process \n");
               p=curr_proc;                                      //to go through all the ptable to update the cfs statistics
               foundRUNNABLE = 1;                                //therefore if we found a RUNNABLE process we dont want to
             }                                                   //to switch to it until updating the intire ptable
 
             //At the end of ptable.proc  if we found a 
-          if(curr_proc == &ptable.proc[NPROC-1] && foundRUNNABLE)
-            foundProcess = 1;
+            //cprintf("before end of ptable, foundRUNNABLE = %d  \n",foundRUNNABLE);
+          if(curr_proc == &ptable.proc[NPROC-1] && foundRUNNABLE){
+            //cprintf("turning On canSwitch Flag \n");
+            canSwitch = 1;
+          }
             break;
        }
 
-
-       if(!foundProcess)
+      //cprintf("before not switch  \n");
+       if(!canSwitch)
           continue;
-    
+        
+      cprintf("choose process No %d \n",p->pid);
 
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
@@ -551,6 +569,7 @@ sched(void)
 void
 yield(void)
 {
+  cprintf("entered yield\n");
   acquire(&ptable.lock);  //DOC: yieldlock
   myproc()->state = RUNNABLE;
   sched();
