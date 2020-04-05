@@ -8,6 +8,25 @@
 #include "proc.h"
 
 int
+sys_set_ps_priority(void)
+{                           //ass4
+  int new_priority;
+  if(argint(0, &new_priority) <0)
+    return -1;
+  set_ps_priority(new_priority);
+  return 0;
+}
+
+
+int 
+sys_set_cfs_priority(void){
+  int new_priority;
+  if(argint(0, &new_priority) <0)
+    return -1;
+  return set_cfs_priority(new_priority);
+}
+
+int
 sys_fork(void)
 {
   return fork();
@@ -16,14 +35,21 @@ sys_fork(void)
 int
 sys_exit(void)
 {
-  exit();
-  return 0;  // not reached
+  int status;
+  if(argint(0, &status) <0)
+    return -1;
+  exit(status);
+  return 0; //not reached
 }
 
 int
 sys_wait(void)
 {
-  return wait();
+  int *status;
+  if(argptr(0,(char **)(&status),4)<0)
+    return -1;
+
+  return wait(status);
 }
 
 int

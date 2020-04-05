@@ -41,6 +41,7 @@ struct proc {
   char *kstack;                // Bottom of kernel stack for this process
   enum procstate state;        // Process state
   int pid;                     // Process ID
+  int status;                  // Process status
   struct proc *parent;         // Parent process
   struct trapframe *tf;        // Trap frame for current syscall
   struct context *context;     // swtch() here to run process
@@ -48,6 +49,8 @@ struct proc {
   int killed;                  // If non-zero, have been killed
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
+  long long accumulator;       // Process accumulator 4.2
+  int ps_priority;             // Process priority  4.2
   char name[16];               // Process name (debugging)
 };
 

@@ -104,7 +104,7 @@ int             pipewrite(struct pipe*, char*, int);
 //PAGEBREAK: 16
 // proc.c
 int             cpuid(void);
-void            exit(void);
+void            exit(int);
 int             fork(void);
 int             growproc(int);
 int             kill(int);
@@ -117,7 +117,7 @@ void            sched(void);
 void            setproc(struct proc*);
 void            sleep(void*, struct spinlock*);
 void            userinit(void);
-int             wait(void);
+int             wait(int*);
 void            wakeup(void*);
 void            yield(void);
 
@@ -164,6 +164,7 @@ void            idtinit(void);
 extern uint     ticks;
 void            tvinit(void);
 extern struct spinlock tickslock;
+int             sched_type; //the scheduling type
 
 // uart.c
 void            uartinit(void);

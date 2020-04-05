@@ -20,3 +20,6 @@
 #define SYS_link   19
 #define SYS_mkdir  20
 #define SYS_close  21
+#define SYS_memsize  22
+#define SYS_set_ps_priority  23
+#define SYS_set_cfs_priority 24

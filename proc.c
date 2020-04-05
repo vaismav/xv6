@@ -6,6 +6,7 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
+#include "limits.h"
 
 struct {
   struct spinlock lock;
@@ -88,6 +89,20 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
+
+  //Set priotity an accumulator of new process
+  p->ps_priority=5; //priority of a new process in priority schedualer
+  //accumulator set  to a new process
+  long long acc=LLONG_MAX;
+  struct proc *q; 
+  for(q = ptable.proc; q < &ptable.proc[NPROC]; q++){
+    if(q->state == RUNNABLE | q->state == RUNNING){
+     if(q->accumulator<acc)
+        acc=q->accumulator;
+    }
+  }
+  p->accumulator=acc;
+  //End of priotity an accumulator
 
   release(&ptable.lock);
 
@@ -188,7 +203,7 @@ fork(void)
   if((np = allocproc()) == 0){
     return -1;
   }
-
+  
   // Copy process state from proc.
   if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
     kfree(np->kstack);
@@ -225,7 +240,7 @@ fork(void)
 // An exited process remains in the zombie state
 // until its parent calls wait() to find out it exited.
 void
-exit(void)
+exit(int status)
 {
   struct proc *curproc = myproc();
   struct proc *p;
@@ -246,6 +261,7 @@ exit(void)
   iput(curproc->cwd);
   end_op();
   curproc->cwd = 0;
+  curproc->status=status;
 
   acquire(&ptable.lock);
 
@@ -270,7 +286,7 @@ exit(void)
 // Wait for a child process to exit and return its pid.
 // Return -1 if this process has no children.
 int
-wait(void)
+wait(int *status)
 {
   struct proc *p;
   int havekids, pid;
@@ -285,6 +301,8 @@ wait(void)
         continue;
       havekids = 1;
       if(p->state == ZOMBIE){
+        if(status!=0)
+          *status=p->status;
         // Found one.
         pid = p->pid;
         kfree(p->kstack);
@@ -298,6 +316,7 @@ wait(void)
         release(&ptable.lock);
         return pid;
       }
+    
     }
 
     // No point waiting if we don't have any children.
@@ -305,11 +324,40 @@ wait(void)
       release(&ptable.lock);
       return -1;
     }
-
+    
     // Wait for children to exit.  (See wakeup1 call in proc_exit.)
     sleep(curproc, &ptable.lock);  //DOC: wait-sleep
   }
+
 }
+
+int    
+set_ps_priority(int priority)     //priority 4.2
+{
+  struct proc *curproc = myproc();
+  struct proc *p;
+  curproc->ps_priority=priority;
+  return 0;
+}
+
+
+/**CSF priority for task 4.3 in assinment 1
+ * 1. High priority – Decay factor = 0.75
+ * 2. Normal priority – Decay factor = 1
+ * 3. Low priority – Decay factor = 1.25 
+ */
+void 
+set_cfs_priority(int priority){
+  if(priority<1 || priority>3){
+    printf(1,"ERROR: set_cfs_priority, input out of range [1,3], input value = %d",priority);
+    return -1;
+  }
+  struct proc *curproc = myproc();
+  struct proc *p;
+  curproc->ps_priority=priority;
+}
+
+//
 
 //PAGEBREAK: 42
 // Per-CPU process scheduler.
@@ -332,9 +380,29 @@ scheduler(void)
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    switch (sched_type)
+    {
+    case 0: //default round robin
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state != RUNNABLE)
         continue;
+      break;
+    
+    case 1: //schedualing by Priority
+
+      break;
+
+    case 2:
+      break;
+
+    default:
+      printf(1,"Error!  sched_type = %d.\nshecdualing by default\n",sched_type);
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+        if(p->state != RUNNABLE)
+         continue;
+      }
+    }
+    
 
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
