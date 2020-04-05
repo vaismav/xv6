@@ -53,7 +53,9 @@ struct proc {
   //Added content
   long long accumulator;       // Process accumulator 4.2
   int ps_priority;             // Process priority  4.2
-  
+  long rtime;                  // Time process was in running state
+  long stime;                  // Time process was in sleeping state.
+  long retime;                 // Time process was in ready/runnable state.
 };
 
 // Process memory is laid out contiguously, low addresses first:

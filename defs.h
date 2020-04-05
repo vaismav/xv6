@@ -123,7 +123,8 @@ void            yield(void);
 // proc.c add functions
 int             set_cfs_priority(int);      //By Avishai
 int             set_ps_priority(int);       //By Maya
-int             memsize(void);              //Avishai          
+int             memsize(void);              //Avishai
+double          decayFactor[4]={0.0,0.75,1.0,1.25};   // Decay Factors for SCF @Avishai       
 
 // swtch.S
 void            swtch(struct context**, struct context*);
