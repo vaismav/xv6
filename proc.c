@@ -104,7 +104,7 @@ allocproc(void)
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if(p->state == UNUSED)
-    cprintf("p state unused pid %d \n",p->pid);
+    //cprintf("p state unused pid %d \n",p->pid);
       goto found;
 
   release(&ptable.lock);
@@ -112,35 +112,34 @@ allocproc(void)
 
 found:
 
-    cprintf("p state embryo  pid %d \n",p->pid);
+    if(DEBUGMODE) cprintf("p state embryo  pid %d \n",p->pid);
   p->state = EMBRYO;
+
   p->pid = nextpid++;
+   if(DEBUGMODE) cprintf("p state embryo after ++ pid %d nextid:%d \n",p->pid, nextpid);
 
   //Handle Priority Scheduling fields
   p->ps_priority=5; //priority of a new process in priority schedualer
-  
+  if(DEBUGMODE) cprintf("before accumuletor in allocproc \n");
   //accumulator set  to a new process
   long long acc=LLONG_MAX;
   struct proc *q; 
   for(q = ptable.proc; q < &ptable.proc[NPROC]; q++){
+    if(DEBUGMODE) cprintf("in for for q \n");
     if(q->state == RUNNABLE || q->state == RUNNING){
      if(q->accumulator<acc)
         acc=q->accumulator;
     }
   }
   p->accumulator=acc;
-  
-  //Handle Completely Fair Scheduling fields
-  struct proc *currProc=myproc();
-  p->cfs_priority = currProc->cfs_priority;
-  p->retime = 0;
-  p->rtime = 0;
-  p->stime = 0;
+  if(DEBUGMODE) cprintf("after accumuletor in allocproc \n");
 
+  if(DEBUGMODE) cprintf("before release ptable in allocproc \n");
   release(&ptable.lock);
-
+  if(DEBUGMODE) cprintf("relesed ptanle in allocproc \n");
   // Allocate kernel stack.
   if((p->kstack = kalloc()) == 0){
+     if(DEBUGMODE) cprintf("p faild to kalloc kstack pid %d \n",p->pid);
     p->state = UNUSED;
     return 0;
   }
@@ -159,7 +158,7 @@ found:
   p->context = (struct context*)sp;
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
-
+  if(DEBUGMODE) cprintf("end of allocproc \n");
   return p;
 }
 
@@ -170,7 +169,7 @@ userinit(void)
 {
   struct proc *p;
   extern char _binary_initcode_start[], _binary_initcode_size[];
-
+  cprintf("initial proc enters allocproc  \n" );
   p = allocproc();
   
   initproc = p;
@@ -209,7 +208,7 @@ userinit(void)
   // writes to be visible, and the lock is also needed
   // because the assignment might not be atomic.
   acquire(&ptable.lock);
-
+ cprintf("p before turn to runnable oid %d \n",p->pid);
   p->state = RUNNABLE;
 
   release(&ptable.lock);
@@ -256,9 +255,15 @@ fork(void)
   if((np = allocproc()) == 0){
     return -1;
   }
-  
+  //Handle Completely Fair Scheduling fields
+  np->cfs_priority = curproc->cfs_priority;
+  np->retime = 0;
+  np->rtime = 0;
+  np->stime = 0;
+   cprintf("p state unused in fork before if pid %d \n",np->pid);
   // Copy process state from proc.
   if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
+     cprintf("p state unused in fork in if pid %d \n",np->pid);
     kfree(np->kstack);
     np->kstack = 0;
     np->state = UNUSED;
@@ -356,6 +361,7 @@ wait(int *status)
       if(p->state == ZOMBIE){
         if(status!=0)
           *status=p->status;
+           cprintf("p state unused in wait pid %d \n",p->pid);
         // Found one.
         pid = p->pid;
         kfree(p->kstack);
@@ -438,20 +444,20 @@ set_cfs_priority(int priority){
 void
 scheduler(void)
 {
-  cprintf("main process got in scheduler\n");
+  // cprintf("main process got in scheduler\n");
   struct proc *p;
   struct cpu *c = mycpu();
   c->proc = 0;
 
   //additional settings by Maya And Avishai
   struct proc *curr_proc;
-  long long acc_min=LLONG_MAX;
-  int canSwitch;                          //boolian to indicat if found a procces to run
-  int foundRUNNABLE;                         //boolian to indicat if schedualer found a RUNNABLE Process
-  double pRunTimeRatio;                      //will hold the value of the minimal time run ratio 
-  double currRunTimeRatio;                   //hold the value of the current process time run ratio 
-  double decayFactor[4]={0.0,0.75,1,1.25};   //array of CFS decay factors
-  p=ptable.proc;
+  // long long acc_min=LLONG_MAX;
+  // int canSwitch;                          //boolian to indicat if found a procces to run
+  // int foundRUNNABLE;                         //boolian to indicat if schedualer found a RUNNABLE Process
+  // double pRunTimeRatio;                      //will hold the value of the minimal time run ratio 
+  // double currRunTimeRatio;                   //hold the value of the current process time run ratio 
+  // double decayFactor[4]={0.0,0.75,1,1.25};   //array of CFS decay factors
+  // p=ptable.proc;
 
   
   
@@ -463,11 +469,11 @@ scheduler(void)
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
 
-    canSwitch = 0; 
-    foundRUNNABLE = 0;
-    pRunTimeRatio = 9999999999.0;
+    // canSwitch = 0; 
+    // foundRUNNABLE = 0;
+    // pRunTimeRatio = 9999999999.0;
     for(curr_proc = ptable.proc; curr_proc < &ptable.proc[NPROC]; curr_proc++){
-      //cprintf("outside for looop process got in scheduler\n");
+    /*  //cprintf("outside for looop process got in scheduler\n");
        switch (sched_type)
        {
         case 1:
@@ -505,19 +511,24 @@ scheduler(void)
             }                                                   //to switch to it until updating the intire ptable
 
             //At the end of ptable.proc  if we found a 
-            //cprintf("before end of ptable, foundRUNNABLE = %d  \n",foundRUNNABLE);
+            cprintf("before end of ptable, foundRUNNABLE = %d  \n",foundRUNNABLE);
           if(curr_proc == &ptable.proc[NPROC-1] && foundRUNNABLE){
-            //cprintf("turning On canSwitch Flag \n");
+            cprintf("turning On canSwitch Flag \n");
             canSwitch = 1;
           }
             break;
        }
 
-      //cprintf("before not switch  \n");
+      cprintf("before not switch  \n");
        if(!canSwitch)
           continue;
         
       cprintf("choose process No %d \n",p->pid);
+      */
+      
+      if(curr_proc->state != RUNNABLE)
+        continue;
+      p=curr_proc;
 
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
@@ -569,7 +580,6 @@ sched(void)
 void
 yield(void)
 {
-  cprintf("entered yield\n");
   acquire(&ptable.lock);  //DOC: yieldlock
   myproc()->state = RUNNABLE;
   sched();
@@ -724,8 +734,10 @@ procdump(void)
   char *state;
   uint pc[10];
 
+
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->state == UNUSED)
+     cprintf("p state unused in procdump pid %d \n",p->pid);
       continue;
     if(p->state >= 0 && p->state < NELEM(states) && states[p->state])
       state = states[p->state];

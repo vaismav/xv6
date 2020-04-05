@@ -3,7 +3,7 @@ typedef unsigned short ushort;
 typedef unsigned char  uchar;
 typedef uint pde_t;
 #define null ((void*)0)
-
+#define DEBUGMODE 0
 
 struct perf {
     int ps_priority;
