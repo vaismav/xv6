@@ -411,7 +411,9 @@ proc_info(struct perf *preformance){
 
 int
 policy(int policy_num){   // TODO: is this right?
+  
   sched_type=policy_num;
+  
   return 0;
 }
 
@@ -427,7 +429,9 @@ set_cfs_priority(int priority){
     return -1;
   }
   struct proc *curproc = myproc();
+  
   curproc->cfs_priority=priority;
+  
   return 0;
 }
 
