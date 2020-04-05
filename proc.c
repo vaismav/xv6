@@ -378,28 +378,84 @@ scheduler(void)
   struct proc *p;
   struct cpu *c = mycpu();
   c->proc = 0;
-  
+
+  //additional settings by Maya And Avishai
+  struct proc *cuur_proc;
+  long long acc_min=LLONG_MAX;
+  int foundProcess;                          //boolian to indicat if found a procces to run
+  int foundRUNNABLE;                         //boolian to indicat if schedualer found a RUNNABLE Process
+  double pRunTimeRatio;                      //will hold the value of the minimal time run ratio 
+  double currRunTimeRatio;                   //hold the value of the current process time run ratio 
+  double decayFactor[4]={0.0,0.75,1,1.25};   //array of CFS decay factors
+  p=ptable.proc;
+
   for(;;){
     // Enable interrupts on this processor.
     sti();
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-    switch (sched_type)
-    {
-    case 0: //default round robin
-      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
-      break;
+    // switch (sched_type)
+    // {
+    // case 0: //default round robin
+    foundProcess = 0; 
+    foundRUNNABLE = 0;
+    pRunTimeRatio = 9999999999.0;
+    for(cuur_proc = ptable.proc; cuur_proc < &ptable.proc[NPROC]; cuur_proc++){
+      // for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+        switch (sched_type)
+       {
+        case 0:
+            if(cuur_proc->state == RUNNABLE){
+              p=cuur_proc;
+              foundProcess = 1;
+              foundRUNNABLE = 1;
+            }
+            break;
+        case 1:
+            if(acc_min>(cuur_proc->accumulator) && cuur_proc->state == RUNNABLE){
+              acc_min=cuur_proc->accumulator;
+              p=cuur_proc;
+            }
+            foundRUNNABLE = 1;
+            foundProcess = 1;
+            break;
+        case 2:
+          switch (cuur_proc->state)
+          {
+          case RUNNABLE:
+            foundRUNNABLE = 1;
+            cuur_proc->retime ++;   //Increase the value of the time the process was ready to run 
+            currRunTimeRatio =(((double)cuur_proc->rtime)*decayFactor[cuur_proc->ps_priority])
+                                      /(double)((cuur_proc->retime) + (cuur_proc->rtime) + (cuur_proc->stime));
+            if(currRunTimeRatio < pRunTimeRatio){
+              p = cuur_proc;
+              pRunTimeRatio = currRunTimeRatio;
+            }
+            break;
+          case SLEEPING:
+            cuur_proc->stime ++;  //Increase the value of the process sleep time indicator
+            break;
+          case RUNNING:
+            cuur_proc->rtime ++;  //Increase the value of the process running time indicator
+            break;
+          }
 
-    default:
-      cprintf("Error!  sched_type = %d.\nshecdualing by default\n",sched_type);
-      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-        if(p->state != RUNNABLE)
-         continue;
-      }
-    }
+          //At the end of ptable.proc  
+          if(cuur_proc == &ptable.proc[NPROC-1] && foundRUNNABLE)
+            foundProcess = 1;
+          break;
+
+        default:
+          cprintf("Error!  sched_type = %d.\nshecdualing by default\n",sched_type);
+          if(cuur_proc->state == RUNNABLE){
+              p=cuur_proc;
+              foundProcess = 1;
+              foundRUNNABLE = 1;
+            }
+       }
+       if(!foundProcess)
+          continue;
     
 
       // Switch to chosen process.  It is the process's job
@@ -416,6 +472,7 @@ scheduler(void)
       // It should have changed its p->state before coming back.
       c->proc = 0;
     }
+  
     release(&ptable.lock);
 
   }
@@ -525,27 +582,30 @@ wakeup1(void *chan) //TODO fixxx
 {
   struct proc *p;
 
-  long long acc= LLONG_MAX;
+  long long acc_min= LLONG_MAX;
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->state == SLEEPING && p->chan == chan){
       p->state = RUNNABLE;
       //update accumulator
       struct proc *q; 
+      int runnable_counter=0;
       for(q = ptable.proc; q < &ptable.proc[NPROC]; q++){
        if(q->state == RUNNABLE || q->state == RUNNING){
-         if(q->accumulator<acc)
-           acc=q->accumulator;
+         if(q->state == RUNNABLE)
+            runnable_counter=runnable_counter+1;
+         if(q->accumulator<acc_min)
+           acc_min=q->accumulator;
        }
       }
-      p->accumulator=acc;
+      if(runnable_counter==1)
+        p->accumulator=0;
+      else
+         p->accumulator=acc_min;
     }
       
-
   }
-      
-
-
+  
 }
 
 // Wake up all processes sleeping on chan.
