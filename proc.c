@@ -390,6 +390,8 @@ scheduler(void)
     
     case 1: //schedualing by Priority
 
+//p is the nedw process
+//update p's accumulator
       break;
 
     case 2:
@@ -410,21 +412,10 @@ scheduler(void)
       c->proc = p;
       switchuvm(p);
       p->state = RUNNING;
-
       swtch(&(c->scheduler), p->context);
+      
       switchkvm();
-
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      c->proc = 0;
-    }
-    release(&ptable.lock);
-
-  }
-}
-
-// Enter scheduler.  Must hold only ptable.lock
-// and have changed proc->state. Saves and restores
+      p->accumulator=(p->accumulator)+(p->ps_priority);// accumulator update, process finished quantom
 // intena because intena is a property of this
 // kernel thread, not this CPU. It should
 // be proc->intena and proc->ncli, but that would
@@ -523,13 +514,30 @@ sleep(void *chan, struct spinlock *lk)
 // Wake up all processes sleeping on chan.
 // The ptable lock must be held.
 static void
-wakeup1(void *chan)
+wakeup1(void *chan) //TODO fixxx
 {
   struct proc *p;
 
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  long long acc= LLONG_MAX;
+
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->state == SLEEPING && p->chan == chan)
       p->state = RUNNABLE;
+      //update accumulator
+      struct proc *q; 
+      for(q = ptable.proc; q < &ptable.proc[NPROC]; q++){
+       if(q->state == RUNNABLE | q->state == RUNNING){
+         if(q->accumulator<acc)
+           acc=q->accumulator;
+       }
+      }
+      p->accumulator=acc;
+      
+
+  }
+      
+
+
 }
 
 // Wake up all processes sleeping on chan.
@@ -538,6 +546,8 @@ wakeup(void *chan)
 {
   acquire(&ptable.lock);
   wakeup1(chan);
+
+
   release(&ptable.lock);
 }
 
