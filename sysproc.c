@@ -23,6 +23,7 @@ sys_set_cfs_priority(void){
   int new_priority;
   if(argint(0, &new_priority) <0)
     return -1;
+    
   return set_cfs_priority(new_priority);
 }
 

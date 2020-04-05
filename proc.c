@@ -96,7 +96,7 @@ found:
   long long acc=LLONG_MAX;
   struct proc *q; 
   for(q = ptable.proc; q < &ptable.proc[NPROC]; q++){
-    if(q->state == RUNNABLE | q->state == RUNNING){
+    if(q->state == RUNNABLE || q->state == RUNNING){
      if(q->accumulator<acc)
         acc=q->accumulator;
     }
@@ -335,7 +335,6 @@ int
 set_ps_priority(int priority)     //priority 4.2
 {
   struct proc *curproc = myproc();
-  struct proc *p;
   curproc->ps_priority=priority;
   return 0;
 }
@@ -346,15 +345,15 @@ set_ps_priority(int priority)     //priority 4.2
  * 2. Normal priority – Decay factor = 1
  * 3. Low priority – Decay factor = 1.25 
  */
-void 
+int 
 set_cfs_priority(int priority){
   if(priority<1 || priority>3){
-    printf(1,"ERROR: set_cfs_priority, input out of range [1,3], input value = %d",priority);
+    cprintf("ERROR: set_cfs_priority, input out of range [1,3], input value = %d",priority);
     return -1;
   }
   struct proc *curproc = myproc();
-  struct proc *p;
   curproc->ps_priority=priority;
+  return 0;
 }
 
 //
@@ -387,18 +386,9 @@ scheduler(void)
       if(p->state != RUNNABLE)
         continue;
       break;
-    
-    case 1: //schedualing by Priority
-
-//p is the nedw process
-//update p's accumulator
-      break;
-
-    case 2:
-      break;
-
+      
     default:
-      printf(1,"Error!  sched_type = %d.\nshecdualing by default\n",sched_type);
+      cprintf("Error!  sched_type = %d.\nshecdualing by default\n",sched_type);
       for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
         if(p->state != RUNNABLE)
          continue;
@@ -532,17 +522,18 @@ wakeup1(void *chan) //TODO fixxx
   long long acc= LLONG_MAX;
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    if(p->state == SLEEPING && p->chan == chan)
+    if(p->state == SLEEPING && p->chan == chan){
       p->state = RUNNABLE;
       //update accumulator
       struct proc *q; 
       for(q = ptable.proc; q < &ptable.proc[NPROC]; q++){
-       if(q->state == RUNNABLE | q->state == RUNNING){
+       if(q->state == RUNNABLE || q->state == RUNNING){
          if(q->accumulator<acc)
            acc=q->accumulator;
        }
       }
       p->accumulator=acc;
+    }
       
 
   }

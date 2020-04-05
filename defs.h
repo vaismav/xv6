@@ -120,6 +120,9 @@ void            userinit(void);
 int             wait(int*);
 void            wakeup(void*);
 void            yield(void);
+// proc.c add functions
+int             set_cfs_priority(int);      //By Avishai
+int             set_ps_priority(int);       //By Maya
 
 // swtch.S
 void            swtch(struct context**, struct context*);
