@@ -18,11 +18,9 @@ void printStat(){
 int 
 main(int argc, char *argv[])
 {
-  int pid[3];
-  printf(1,"PID\tPS_PRIORITY\tSTIME\tRETIME\tRTIME\n");
+  printf(1,"PID PS_PRIORITY STIME RETIME RTIME\n");
 
-  int cpid =fork();   //create first dummy child
-  if(cpid==0){
+  if(fork()==0){    //create first dummy child
     //setting first child priorites
     set_cfs_priority(10);
     set_ps_priority(1);
@@ -30,37 +28,32 @@ main(int argc, char *argv[])
     goPlay();
     printStat();
   }
+  else if(fork()==0){   //create second dummy child
+    //setting first child priorites
+    set_cfs_priority(5);
+    set_ps_priority(2);
+
+    //second dummy child start working
+    goPlay();
+    printStat();
+  }
+  else if(fork()==0){   //create third dummy child
+    //setting third child priorites
+    set_cfs_priority(1);
+    set_ps_priority(3);
+
+    //second dummy child start working
+    goPlay();
+    printStat();
+  }
   else{
-    pid[1] = cpid;
-    cpid =fork();   //create second dummy child
-    if(cpid==0){
-      //setting first child priorites
-      set_cfs_priority(5);
-      set_ps_priority(2);
-
-      //second dummy child start working
-      goPlay();
-      printStat();
-    }
-    else{
-      pid[2] = cpid;
-      cpid =fork();   //create second dummy child
-      if(cpid==0){
-        //setting third child priorites
-        set_cfs_priority(1);
-        set_ps_priority(3);
-
-        //second dummy child start working
-        goPlay();
-        printStat();
-      }
-      else{
-        //Father of all
-        wait(null);
-        wait(null);
-        wait(null);
-      }
-    } 
+    //Father of all
+    wait(null);
+    wait(null);
+    wait(null);
   }
   exit(0); 
-}
+} 
+
+  
+

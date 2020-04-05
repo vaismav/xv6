@@ -260,7 +260,7 @@ fork(void)
   np->retime = 0;
   np->rtime = 0;
   np->stime = 0;
-   cprintf("p state unused in fork before if pid %d \n",np->pid);
+   if(DEBUGMODE) cprintf("p state unused in fork before if pid %d \n",np->pid);
   // Copy process state from proc.
   if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
      cprintf("p state unused in fork in if pid %d \n",np->pid);
@@ -361,7 +361,7 @@ wait(int *status)
       if(p->state == ZOMBIE){
         if(status!=0)
           *status=p->status;
-           cprintf("p state unused in wait pid %d \n",p->pid);
+           if(DEBUGMODE) cprintf("p state unused in wait pid %d \n",p->pid);
         // Found one.
         pid = p->pid;
         kfree(p->kstack);
@@ -451,13 +451,13 @@ scheduler(void)
 
   //additional settings by Maya And Avishai
   struct proc *curr_proc;
-  // long long acc_min=LLONG_MAX;
-  // int canSwitch;                          //boolian to indicat if found a procces to run
-  // int foundRUNNABLE;                         //boolian to indicat if schedualer found a RUNNABLE Process
-  // double pRunTimeRatio;                      //will hold the value of the minimal time run ratio 
-  // double currRunTimeRatio;                   //hold the value of the current process time run ratio 
-  // double decayFactor[4]={0.0,0.75,1,1.25};   //array of CFS decay factors
-  // p=ptable.proc;
+  long long acc_min=LLONG_MAX;
+  int canSwitch;                          //boolian to indicat if found a procces to run
+  int foundRUNNABLE;                         //boolian to indicat if schedualer found a RUNNABLE Process
+  double pRunTimeRatio;                      //will hold the value of the minimal time run ratio 
+  double currRunTimeRatio;                   //hold the value of the current process time run ratio 
+  double decayFactor[4]={0.0,0.75,1,1.25};   //array of CFS decay factors
+  p=ptable.proc;
 
   
   
@@ -469,15 +469,15 @@ scheduler(void)
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
 
-    // canSwitch = 0; 
-    // foundRUNNABLE = 0;
-    // pRunTimeRatio = 9999999999.0;
+    canSwitch = 0; 
+    foundRUNNABLE = 0;
+    pRunTimeRatio = 9999999999.0;
     for(curr_proc = ptable.proc; curr_proc < &ptable.proc[NPROC]; curr_proc++){
-    /*  //cprintf("outside for looop process got in scheduler\n");
+      //cprintf("outside for looop process got in scheduler\n");
        switch (sched_type)
        {
         case 1:
-        cprintf("case 1 process got in scheduler\n");
+        if(DEBUGMODE) cprintf("case 1 process got in scheduler\n");
 
             if(acc_min>(curr_proc->accumulator) && curr_proc->state == RUNNABLE){
               acc_min=curr_proc->accumulator;
@@ -502,33 +502,30 @@ scheduler(void)
           break;
 
         default:
-        cprintf("choose defult sched, check pid:%d, state:%d \n",curr_proc->pid,(int)curr_proc->state);
+        if(DEBUGMODE) cprintf("choose defult sched, check pid:%d, state:%d \n",curr_proc->pid,(int)curr_proc->state);
             //the scheduler will update p only in the first time it reach a RUNNABLE process
             if(curr_proc->state == RUNNABLE && !foundRUNNABLE){ //in the default sched as round robin we want
-              cprintf("found RUNNABLE process \n");
+              if(DEBUGMODE) cprintf("found RUNNABLE process \n");
               p=curr_proc;                                      //to go through all the ptable to update the cfs statistics
               foundRUNNABLE = 1;                                //therefore if we found a RUNNABLE process we dont want to
             }                                                   //to switch to it until updating the intire ptable
 
             //At the end of ptable.proc  if we found a 
-            cprintf("before end of ptable, foundRUNNABLE = %d  \n",foundRUNNABLE);
+            if(DEBUGMODE) cprintf("before end of ptable, foundRUNNABLE = %d  \n",foundRUNNABLE);
           if(curr_proc == &ptable.proc[NPROC-1] && foundRUNNABLE){
-            cprintf("turning On canSwitch Flag \n");
+            if(DEBUGMODE) cprintf("turning On canSwitch Flag \n");
             canSwitch = 1;
           }
             break;
        }
 
-      cprintf("before not switch  \n");
+      if(DEBUGMODE) cprintf("before not switch  \n");
        if(!canSwitch)
           continue;
         
-      cprintf("choose process No %d \n",p->pid);
-      */
+      if(DEBUGMODE) cprintf("choose process No %d \n",p->pid);
       
-      if(curr_proc->state != RUNNABLE)
-        continue;
-      p=curr_proc;
+      
 
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
