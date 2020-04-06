@@ -169,6 +169,7 @@ UPROGS=\
 	_cat\
 	_echo\
 	_helloworld\
+	_memsizetest\
 	_policy\
 	_testtest\
 	_forktest\

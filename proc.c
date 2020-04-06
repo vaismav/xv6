@@ -237,8 +237,8 @@ growproc(int n)
 
 int
 memsize(void){
-  struct proc *p = myproc();
-  return p->sz;
+  
+  return myproc()->sz;
 }
 
 // Create a new process copying p as the parent.
