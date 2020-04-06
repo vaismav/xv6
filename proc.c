@@ -456,98 +456,87 @@ scheduler(void)
   struct proc *p;
   struct cpu *c = mycpu();
   c->proc = 0;
-
-  //additional settings by Maya And Avishai
-  struct proc *curr_proc;
-  long long acc_min=LLONG_MAX;
-  int canSwitch;                          //boolian to indicat if found a procces to run
-  int foundRUNNABLE;                         //boolian to indicat if schedualer found a RUNNABLE Process
+  //Ours 
+  struct proc *my_p;
+  long long min_acc=LLONG_MAX;
   double pRunTimeRatio;                      //will hold the value of the minimal time run ratio 
   double currRunTimeRatio;                   //hold the value of the current process time run ratio 
   double decayFactor[4]={0.0,0.75,1,1.25};   //array of CFS decay factors
-  p=ptable.proc;
 
-  
-  
-  for(;;){
-    //cprintf("got in infinity sched loop\n");
+    for(;;){
     // Enable interrupts on this processor.
-    sti();
-
+     sti();
+    
     // Loop over process table looking for process to run.
-    acquire(&ptable.lock);
-
-    canSwitch = 0; 
-    foundRUNNABLE = 0;
-    pRunTimeRatio = 9999999999.0;
-    for(curr_proc = ptable.proc; curr_proc < &ptable.proc[NPROC]; curr_proc++){
-      //cprintf("outside for looop process got in scheduler\n");
-       switch (sched_type)
-       {
-        case 0:
-          if(DEBUGMODE) cprintf("case 0 process got in scheduler\n");
-          if(curr_proc->state == RUNNABLE && !foundRUNNABLE){ //in the default sched as round robin we want
-                if(DEBUGMODE) cprintf("found RUNNABLE process \n");
-                p=curr_proc;                                      //to go through all the ptable to update the cfs statistics
-                foundRUNNABLE = 1;                                //therefore if we found a RUNNABLE process we dont want to
-              }                                                   //to switch to it until updating the intire ptable
-
-              //At the end of ptable.proc  if we found a 
-              if(DEBUGMODE) cprintf("before end of ptable, foundRUNNABLE = %d  \n",foundRUNNABLE);
-            if(curr_proc == &ptable.proc[NPROC-1] && foundRUNNABLE){
-              if(DEBUGMODE) cprintf("turning On canSwitch Flag \n");
-              canSwitch = 1;
-            }
-
-            break;
-        case 1:
-          if(DEBUGMODE) cprintf("case 1 process got in scheduler\n");
-
-              if(acc_min>(curr_proc->accumulator) && curr_proc->state == RUNNABLE){
-                acc_min=curr_proc->accumulator;
-                p=curr_proc;
-              }
-              foundRUNNABLE = 1;
-              canSwitch = 1;
-              break;
-        case 2:
-          if (curr_proc->state == RUNNABLE){
-            foundRUNNABLE = 1;
-            currRunTimeRatio =(((double)curr_proc->rtime)*decayFactor[curr_proc->cfs_priority])
-                                      /(double)((curr_proc->retime) + (curr_proc->rtime) + (curr_proc->stime));
+     acquire(&ptable.lock);
+     pRunTimeRatio = 9999999999.0;
+      
+    switch(sched_type){
+      case 0:
+        for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+          if(p->state != RUNNABLE)
+            continue;
+          // Switch to chosen process.  It is the process's job
+          // to release ptable.lock and then reacquire it
+          // before jumping back to us.
+          c->proc = p;
+          switchuvm(p);
+          p->state = RUNNING;
+          swtch(&(c->scheduler), p->context);
+          
+          switchkvm();
+          p->accumulator=(p->accumulator)+(p->ps_priority);// accumulator update, process finished quantom
+                // Process is done running for now.
+          // It should have changed its p->state before coming back.
+          c->proc = 0;
+        }
+          break;
+      case 1:
+        p=ptable.proc;
+        for(my_p = ptable.proc; my_p < &ptable.proc[NPROC]; my_p++){
+          if(min_acc>(my_p->accumulator) && my_p->state==RUNNABLE)
+            p=my_p;
+        }
+        // Switch to chosen process.  It is the process's job
+        // to release ptable.lock and then reacquire it
+        // before jumping back to us.
+        c->proc = p;
+        switchuvm(p);
+        p->state = RUNNING;
+        swtch(&(c->scheduler), p->context);
+          
+        switchkvm();
+        p->accumulator=(p->accumulator)+(p->ps_priority);// accumulator update, process finished quantom
+                // Process is done running for now.
+          // It should have changed its p->state before coming back.
+        c->proc = 0;
+        break;
+      case 2:
+        p=ptable.proc;
+        for(my_p = ptable.proc; my_p < &ptable.proc[NPROC]; my_p++){
+          if(my_p->state==RUNNABLE){
+            currRunTimeRatio =(((double)my_p->rtime)*decayFactor[my_p->cfs_priority])
+                                       /(double)((my_p->retime) + (my_p->rtime) + (my_p->stime));
             if(currRunTimeRatio < pRunTimeRatio){
-              p = curr_proc;
+              p = my_p;
               pRunTimeRatio = currRunTimeRatio;
             }
           }
-          //At the end of ptable.proc  
-          if(curr_proc == &ptable.proc[NPROC-1] && foundRUNNABLE)
-            canSwitch = 1;
-          break;
-
-       }
-
-      if(DEBUGMODE) cprintf("before not switch  \n");
-       if(!canSwitch)
-          continue;
-        
-      if(DEBUGMODE) cprintf("choose process No %d \n",p->pid);
-      
-      
-
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
-      swtch(&(c->scheduler), p->context);
-      
-      switchkvm();
-      p->accumulator=(p->accumulator)+(p->ps_priority);// accumulator update, process finished quantom
-            // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      c->proc = 0;
+        }
+        // Switch to chosen process.  It is the process's job
+        // to release ptable.lock and then reacquire it
+        // before jumping back to us.
+        c->proc = p;
+        switchuvm(p);
+        p->state = RUNNING;
+        swtch(&(c->scheduler), p->context);
+          
+        switchkvm();
+        p->accumulator=(p->accumulator)+(p->ps_priority);// accumulator update, process finished quantom
+                // Process is done running for now.
+          // It should have changed its p->state before coming back.
+        c->proc = 0;
+        break;
     }
   
     release(&ptable.lock);
