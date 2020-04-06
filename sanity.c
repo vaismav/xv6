@@ -12,26 +12,26 @@ void goPlay(){
 void printStat(){
   struct perf stats;
   proc_info(&stats);
-  printf(1,"%d\t%d\t%d\t%d\t%d\n", getpid(), stats.ps_priority, stats.stime, stats.retime, stats.rtime);
+  printf(1,"%d \t %d \t %d \t %d \t %d\n", getpid(), stats.ps_priority, stats.stime, stats.retime, stats.rtime);
 }
 
 int 
 main(int argc, char *argv[])
 {
-  printf(1,"PID PS_PRIORITY STIME RETIME RTIME\n");
+  printf(1,"Running Sanity test for scheduling...\nPID PS_PRIORITY STIME RETIME RTIME\n");
 
   if(fork()==0){    //create first dummy child
     //setting first child priorites
-    set_cfs_priority(10);
-    set_ps_priority(1);
+    set_cfs_priority(1);
+    set_ps_priority(10);
     //first dummy child start working
     goPlay();
     printStat();
   }
   else if(fork()==0){   //create second dummy child
     //setting first child priorites
-    set_cfs_priority(5);
-    set_ps_priority(2);
+    set_cfs_priority(2);
+    set_ps_priority(5);
 
     //second dummy child start working
     goPlay();
@@ -39,8 +39,8 @@ main(int argc, char *argv[])
   }
   else if(fork()==0){   //create third dummy child
     //setting third child priorites
-    set_cfs_priority(1);
-    set_ps_priority(3);
+    set_cfs_priority(3);
+    set_ps_priority(1);
 
     //second dummy child start working
     goPlay();

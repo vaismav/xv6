@@ -393,26 +393,30 @@ wait(int *status)
 int    
 set_ps_priority(int priority)     //priority 4.2
 {
-  struct proc *curproc = myproc();
-  curproc->ps_priority=priority;
+  acquire(&ptable.lock);
+  myproc()->ps_priority=priority;
+  release(&ptable.lock);
   return 0;
 }
 
 int
-proc_info(struct perf *preformance){
-  struct proc *curproc = myproc();
-  preformance->retime=curproc->retime;
-  preformance->rtime=curproc->rtime;
-  preformance->stime=curproc->stime;
-  preformance->ps_priority=curproc->ps_priority;
-   
-    return 0;
+proc_info(struct perf *preformance){    //the process info 4.4
+  acquire(&ptable.lock);
+  preformance->retime=myproc()->retime;
+  preformance->rtime=myproc()->rtime;
+  preformance->stime=myproc()->stime;
+  preformance->ps_priority=myproc()->ps_priority;
+  release(&ptable.lock);
+  return 0;
 }
 
 int
 policy(int policy_num){   // TODO: is this right?
-  
+  if(policy_num!=0 && policy_num!=1 && policy_num!=2)
+    return -1;
+  acquire(&ptable.lock);
   sched_type=policy_num;
+  release(&ptable.lock);
   
   return 0;
 }
@@ -425,12 +429,12 @@ policy(int policy_num){   // TODO: is this right?
 int 
 set_cfs_priority(int priority){
   if(priority<1 || priority>3){
-    cprintf("ERROR: set_cfs_priority, input out of range [1,3], input value = %d",priority);
+    cprintf("ERROR: set_cfs_priority, input out of range [1,3], input value = %d\n",priority);
     return -1;
   }
-  struct proc *curproc = myproc();
-  
-  curproc->cfs_priority=priority;
+  acquire(&ptable.lock);
+  myproc()->cfs_priority=priority;
+  release(&ptable.lock);
   
   return 0;
 }
@@ -480,16 +484,32 @@ scheduler(void)
       //cprintf("outside for looop process got in scheduler\n");
        switch (sched_type)
        {
-        case 1:
-        if(DEBUGMODE) cprintf("case 1 process got in scheduler\n");
+        case 0:
+          if(DEBUGMODE) cprintf("case 0 process got in scheduler\n");
+          if(curr_proc->state == RUNNABLE && !foundRUNNABLE){ //in the default sched as round robin we want
+                if(DEBUGMODE) cprintf("found RUNNABLE process \n");
+                p=curr_proc;                                      //to go through all the ptable to update the cfs statistics
+                foundRUNNABLE = 1;                                //therefore if we found a RUNNABLE process we dont want to
+              }                                                   //to switch to it until updating the intire ptable
 
-            if(acc_min>(curr_proc->accumulator) && curr_proc->state == RUNNABLE){
-              acc_min=curr_proc->accumulator;
-              p=curr_proc;
+              //At the end of ptable.proc  if we found a 
+              if(DEBUGMODE) cprintf("before end of ptable, foundRUNNABLE = %d  \n",foundRUNNABLE);
+            if(curr_proc == &ptable.proc[NPROC-1] && foundRUNNABLE){
+              if(DEBUGMODE) cprintf("turning On canSwitch Flag \n");
+              canSwitch = 1;
             }
-            foundRUNNABLE = 1;
-            canSwitch = 1;
+
             break;
+        case 1:
+          if(DEBUGMODE) cprintf("case 1 process got in scheduler\n");
+
+              if(acc_min>(curr_proc->accumulator) && curr_proc->state == RUNNABLE){
+                acc_min=curr_proc->accumulator;
+                p=curr_proc;
+              }
+              foundRUNNABLE = 1;
+              canSwitch = 1;
+              break;
         case 2:
           if (curr_proc->state == RUNNABLE){
             foundRUNNABLE = 1;
@@ -505,22 +525,6 @@ scheduler(void)
             canSwitch = 1;
           break;
 
-        default:
-        if(DEBUGMODE) cprintf("choose defult sched, check pid:%d, state:%d \n",curr_proc->pid,(int)curr_proc->state);
-            //the scheduler will update p only in the first time it reach a RUNNABLE process
-            if(curr_proc->state == RUNNABLE && !foundRUNNABLE){ //in the default sched as round robin we want
-              if(DEBUGMODE) cprintf("found RUNNABLE process \n");
-              p=curr_proc;                                      //to go through all the ptable to update the cfs statistics
-              foundRUNNABLE = 1;                                //therefore if we found a RUNNABLE process we dont want to
-            }                                                   //to switch to it until updating the intire ptable
-
-            //At the end of ptable.proc  if we found a 
-            if(DEBUGMODE) cprintf("before end of ptable, foundRUNNABLE = %d  \n",foundRUNNABLE);
-          if(curr_proc == &ptable.proc[NPROC-1] && foundRUNNABLE){
-            if(DEBUGMODE) cprintf("turning On canSwitch Flag \n");
-            canSwitch = 1;
-          }
-            break;
        }
 
       if(DEBUGMODE) cprintf("before not switch  \n");
