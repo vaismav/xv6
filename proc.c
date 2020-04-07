@@ -494,9 +494,12 @@ scheduler(void)
       case 1:
         p=ptable.proc;
         for(my_p = ptable.proc; my_p < &ptable.proc[NPROC]; my_p++){
-          if(min_acc>(my_p->accumulator) && my_p->state==RUNNABLE)
+          if(min_acc>(my_p->accumulator) && my_p->state==RUNNABLE){
+            min_acc=my_p->accumulator;
             p=my_p;
+          }
         }
+        min_acc=LLONG_MAX;
         // Switch to chosen process.  It is the process's job
         // to release ptable.lock and then reacquire it
         // before jumping back to us.
