@@ -21,6 +21,54 @@ extern void trapret(void);
 
 static void wakeup1(void *chan);
 
+//Process state strings
+ char state_UNUSED[]=  "UNUSED  \0";
+ char state_EMBRYO[]=  "RUNNABLE\0";
+ char state_SLEEPING[]="SLEEPING\0";
+ char state_RUNNABLE[]="RUNNABLE\0";
+ char state_RUNNING[]= "RUNNING \0";
+ char state_ZOMBIE[]=  "ZOMBIE  \0";
+ char state_ERROR[]=   "ERROR   \0";//in case of error in procStateToString function
+
+char*
+procStateToString(int state){
+  switch(state){
+    case 0:
+      return state_UNUSED;
+      break;
+    case 1:
+      return state_EMBRYO;
+      break;
+    case 2:
+      return state_SLEEPING;
+      break;
+    case 3:
+      return state_RUNNABLE;
+      break;
+    case 4:
+      return state_RUNNING;
+      break;
+    case 5:
+      return state_ZOMBIE;
+      break;
+  }
+  return state_ERROR;
+}
+
+/**
+ * Print ptable.
+ * NOTICE! should lock ptable before calling the function 
+ */
+void
+printPtable(void){
+  struct proc* p;
+  cprintf("==================================\n=====    Printing ptable     =====\n==================================\n");
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+   cprintf("pid: %d | state: %s | cfs_p: %d | rtime: %d | stime: %d | retime: %d | ps_p: %d | acc: %d\n",
+                            p->pid, procStateToString(p->state), p->cfs_priority, p->rtime, p->stime, p->retime, p->ps_priority,p->accumulator);
+  }
+}
+
 void 
 updateCFSstatistics(){
   struct proc *p;
@@ -40,8 +88,9 @@ updateCFSstatistics(){
       default:
       break;
     }
-  }
+ }
   release(&ptable.lock);
+  
 }
 
 void
@@ -125,7 +174,7 @@ found:
   long long acc=LLONG_MAX;
   struct proc *q; 
   for(q = ptable.proc; q < &ptable.proc[NPROC]; q++){
-    if(DEBUGMODE) cprintf("in for for q \n");
+    if(DEBUGMODE && 0) cprintf("in for for q \n");
     if(q->state == RUNNABLE || q->state == RUNNING){
      if(q->accumulator<acc)
         acc=q->accumulator;
@@ -457,25 +506,44 @@ scheduler(void)
   struct cpu *c = mycpu();
   c->proc = 0;
   //Ours 
+  
   struct proc *my_p;
   long long min_acc=LLONG_MAX;
   double pRunTimeRatio;                      //will hold the value of the minimal time run ratio 
   double currRunTimeRatio;                   //hold the value of the current process time run ratio 
-  double decayFactor[4]={0.0,0.75,1,1.25};   //array of CFS decay factors
-
+  double decayFactor[]={0.0,0.75,1.0,1.25};   //array of CFS decay factors
+  //debug:
+  int printTimingCounter=0;
+  int lastRunningPid=-1;
     for(;;){
     // Enable interrupts on this processor.
      sti();
+     printTimingCounter++;
+    if(printTimingCounter>500000){
+      printTimingCounter=0;
+      if(DEBUGMODE || DEBUG_PRINT_PTABLE){    //debug addition by Avishai to check the ptable before the scheduling
+        acquire(&ptable.lock);
+        printPtable();
+        release(&ptable.lock);
+      }
+    }
     
     // Loop over process table looking for process to run.
      acquire(&ptable.lock);
-     pRunTimeRatio = 9999999999.0;
+     
       
     switch(sched_type){
       case 0:
         for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
           if(p->state != RUNNABLE)
             continue;
+
+          if((DEBUGMODE || DEBUG_CURRENT_RUNNING_PROC) && (lastRunningPid!=p->pid)){
+            lastRunningPid=p->pid;
+             cprintf("proc.c: scheduler: sched 0:running proc %d \n",lastRunningPid);
+          }
+             
+
           // Switch to chosen process.  It is the process's job
           // to release ptable.lock and then reacquire it
           // before jumping back to us.
@@ -493,12 +561,19 @@ scheduler(void)
           break;
       case 1:
         p=ptable.proc;
+        if(DEBUGMODE) cprintf("proc.c: scheduler: sched 1: start iterate ptable\n");
         for(my_p = ptable.proc; my_p < &ptable.proc[NPROC]; my_p++){
           if(min_acc>(my_p->accumulator) && my_p->state==RUNNABLE){
             min_acc=my_p->accumulator;
             p=my_p;
           }
         }
+        
+        if((DEBUGMODE || DEBUG_CURRENT_RUNNING_PROC) && (lastRunningPid!=p->pid)){
+          lastRunningPid=p->pid;
+          cprintf("proc.c: scheduler: sched 0:running proc %d \n",lastRunningPid);
+        }
+
         min_acc=LLONG_MAX;
         // Switch to chosen process.  It is the process's job
         // to release ptable.lock and then reacquire it
@@ -513,20 +588,30 @@ scheduler(void)
                 // Process is done running for now.
           // It should have changed its p->state before coming back.
         c->proc = 0;
+        if(DEBUGMODE) cprintf("proc.c: scheduler: sched 1:finished switching (done switchkvm())\n");        
+
         break;
       case 2:
+        pRunTimeRatio = 100.0;//max double value
+        // pRtime=INT_MAX;
         p=ptable.proc;
+        if(DEBUGMODE) cprintf("proc.c: scheduler: sched 2: start iterate ptable\n");
         for(my_p = ptable.proc; my_p < &ptable.proc[NPROC]; my_p++){
-          if(my_p->state==RUNNABLE){
-            currRunTimeRatio =(((double)my_p->rtime)*decayFactor[my_p->cfs_priority])
-                                       /(double)((my_p->retime) + (my_p->rtime) + (my_p->stime));
+          if(my_p->state==RUNNABLE && ((my_p->retime) + (my_p->rtime) + (my_p->stime) )!= 0){
+            currRunTimeRatio =((my_p->rtime) * (decayFactor[my_p->cfs_priority])) / ((my_p->retime) + (my_p->rtime) + (my_p->stime));
+            if(DEBUGMODE) cprintf("proc.c: scheduler: sched 2: found runnable: check proc pid:%d, current miniml proc is pid:%d\n", my_p->pid,  p->pid);
             if(currRunTimeRatio < pRunTimeRatio){
+              if(DEBUGMODE) cprintf("proc.c: scheduler: sched 2:  pid:%d RunTimeRatio is smaller than  pid:%d RunTimeRatio\n", my_p->pid, p->pid);
               p = my_p;
               pRunTimeRatio = currRunTimeRatio;
             }
           }
         }
-        // Switch to chosen process.  It is the process's job
+        
+        if((DEBUGMODE || DEBUG_CURRENT_RUNNING_PROC) && (lastRunningPid!=p->pid)){
+          lastRunningPid=p->pid;
+            cprintf("proc.c: scheduler: sched 0:running proc %d \n",lastRunningPid);
+        }        // Switch to chosen process.  It is the process's job
         // to release ptable.lock and then reacquire it
         // before jumping back to us.
         c->proc = p;
@@ -535,16 +620,20 @@ scheduler(void)
         swtch(&(c->scheduler), p->context);
           
         switchkvm();
+        
         p->accumulator=(p->accumulator)+(p->ps_priority);// accumulator update, process finished quantom
                 // Process is done running for now.
           // It should have changed its p->state before coming back.
         c->proc = 0;
-        break;
+        if(DEBUGMODE) cprintf("proc.c: scheduler: sched 2:finished switching (done switchkvm())\n");        
+       // break;
     }
-  
+    if(DEBUGMODE && sched_type==2) cprintf("proc.c: scheduler: infinity loop: before release ptable\n");  
     release(&ptable.lock);
-
+    if(DEBUGMODE && sched_type==2) cprintf("proc.c: scheduler: infinity loop: after release ptable\n");  
   }
+        
+
 }
 
 // Enter scheduler.  Must hold only ptable.lock

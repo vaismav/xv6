@@ -3,10 +3,13 @@
 #include "user.h"
 
 void goPlay(){
-  int i = 1000000;
+  
+  int i = 100000;
     int dummy = 0;
-    while(i--)
-    dummy+=i;
+    while(i--){
+    dummy+=1;
+    }
+  
 }
 
 void printStat(){
@@ -51,7 +54,12 @@ main(int argc, char *argv[])
     wait(null);
     wait(null);
     wait(null);
+    printStat();
+    
   }
+ 
+  
+
   exit(0); 
 } 
 
