@@ -171,16 +171,23 @@ found:
   p->ps_priority=5; //priority of a new process in priority schedualer
   if(DEBUGMODE) cprintf("before accumuletor in allocproc \n");
   //accumulator set  to a new process
+  int stat_counter=0;
   long long acc=LLONG_MAX;
   struct proc *q; 
   for(q = ptable.proc; q < &ptable.proc[NPROC]; q++){
     if(DEBUGMODE && 0) cprintf("in for for q \n");
     if(q->state == RUNNABLE || q->state == RUNNING){
-     if(q->accumulator<acc)
+      if(q->state==RUNNABLE)
+        stat_counter=stat_counter+1;
+      if(q->accumulator<acc)
         acc=q->accumulator;
     }
   }
-  p->accumulator=acc;
+  if(stat_counter!=1)
+    p->accumulator=acc;
+  else      //only one runnable
+    p->accumulator=0;
+  
   if(DEBUGMODE) cprintf("after accumuletor in allocproc \n");
 
   if(DEBUGMODE) cprintf("before release ptable in allocproc \n");
@@ -562,6 +569,7 @@ scheduler(void)
       case 1:
         p=ptable.proc;
         if(DEBUGMODE) cprintf("proc.c: scheduler: sched 1: start iterate ptable\n");
+        
         for(my_p = ptable.proc; my_p < &ptable.proc[NPROC]; my_p++){
           if(min_acc>(my_p->accumulator) && my_p->state==RUNNABLE){
             min_acc=my_p->accumulator;
