@@ -519,26 +519,30 @@ scheduler(void)
   double pRunTimeRatio;                      //will hold the value of the minimal time run ratio 
   double currRunTimeRatio;                   //hold the value of the current process time run ratio 
   double decayFactor[]={0.0,0.75,1.0,1.25};   //array of CFS decay factors
+  int foundRUNNABLE;
   //debug:
   int printTimingCounter=0;
   int lastRunningPid=-1;
     for(;;){
     // Enable interrupts on this processor.
-     sti();
-     printTimingCounter++;
-    if(printTimingCounter>500000){
-      printTimingCounter=0;
-      if(DEBUGMODE || DEBUG_PRINT_PTABLE){    //debug addition by Avishai to check the ptable before the scheduling
-        acquire(&ptable.lock);
-        printPtable();
-        release(&ptable.lock);
+      sti();
+
+      //printing ptable in debug mode
+      printTimingCounter++;
+      if(printTimingCounter>500000){
+        printTimingCounter=0;
+        if(DEBUGMODE || DEBUG_PRINT_PTABLE){    //debug addition by Avishai to check the ptable before the scheduling
+          acquire(&ptable.lock);
+          printPtable();
+          release(&ptable.lock);
+        }
       }
-    }
     
     // Loop over process table looking for process to run.
      acquire(&ptable.lock);
      
-      
+    foundRUNNABLE = 0;
+
     switch(sched_type){
       case 0:
         for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
@@ -600,16 +604,18 @@ scheduler(void)
 
         break;
       case 2:
-        pRunTimeRatio = 100.0;//max double value
+        pRunTimeRatio = 9999999.0;//max double value
         // pRtime=INT_MAX;
         p=ptable.proc;
         if(DEBUGMODE) cprintf("proc.c: scheduler: sched 2: start iterate ptable\n");
         for(my_p = ptable.proc; my_p < &ptable.proc[NPROC]; my_p++){
           if(my_p->state==RUNNABLE && ((my_p->retime) + (my_p->rtime) + (my_p->stime) )!= 0){
-            currRunTimeRatio =((my_p->rtime) * (decayFactor[my_p->cfs_priority])) / ((my_p->retime) + (my_p->rtime) + (my_p->stime));
             if(DEBUGMODE) cprintf("proc.c: scheduler: sched 2: found runnable: check proc pid:%d, current miniml proc is pid:%d\n", my_p->pid,  p->pid);
+            
+            currRunTimeRatio =((my_p->rtime) * (decayFactor[my_p->cfs_priority])) / ((my_p->retime) + (my_p->rtime) + (my_p->stime));
             if(currRunTimeRatio < pRunTimeRatio){
               if(DEBUGMODE) cprintf("proc.c: scheduler: sched 2:  pid:%d RunTimeRatio is smaller than  pid:%d RunTimeRatio\n", my_p->pid, p->pid);
+              foundRUNNABLE =1;
               p = my_p;
               pRunTimeRatio = currRunTimeRatio;
             }
@@ -619,20 +625,24 @@ scheduler(void)
         if((DEBUGMODE || DEBUG_CURRENT_RUNNING_PROC) && (lastRunningPid!=p->pid)){
           lastRunningPid=p->pid;
             cprintf("proc.c: scheduler: sched 0:running proc %d \n",lastRunningPid);
-        }        // Switch to chosen process.  It is the process's job
-        // to release ptable.lock and then reacquire it
-        // before jumping back to us.
-        c->proc = p;
-        switchuvm(p);
-        p->state = RUNNING;
-        swtch(&(c->scheduler), p->context);
-          
-        switchkvm();
+        }        
         
-        p->accumulator=(p->accumulator)+(p->ps_priority);// accumulator update, process finished quantom
-                // Process is done running for now.
-          // It should have changed its p->state before coming back.
-        c->proc = 0;
+        if(foundRUNNABLE){
+          // Switch to chosen process.  It is the process's job
+          // to release ptable.lock and then reacquire it
+          // before jumping back to us.
+          c->proc = p;
+          switchuvm(p);
+          p->state = RUNNING;
+          swtch(&(c->scheduler), p->context);
+            
+          switchkvm();
+          
+          p->accumulator=(p->accumulator)+(p->ps_priority);// accumulator update, process finished quantom
+                  // Process is done running for now.
+            // It should have changed its p->state before coming back.
+          c->proc = 0;
+        }
         if(DEBUGMODE) cprintf("proc.c: scheduler: sched 2:finished switching (done switchkvm())\n");        
        // break;
     }
