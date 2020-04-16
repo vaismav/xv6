@@ -2,7 +2,7 @@
 #include "stat.h"
 #include "user.h"
 
-int useSuperDummy =0;
+int useSuperDummy =1;
 
 int fibo(int n){
   if(n<=2 )

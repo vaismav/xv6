@@ -545,7 +545,7 @@ scheduler(void)
 
     switch(sched_type){
       case 0:
-        for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+        for(p = ptable.proc; (p < &ptable.proc[NPROC]) && (sched_type == 0); p++){
           if(p->state != RUNNABLE)
             continue;
 
@@ -574,7 +574,7 @@ scheduler(void)
         p=ptable.proc;
         if(DEBUGMODE) cprintf("proc.c: scheduler: sched 1: start iterate ptable\n");
         
-        for(my_p = ptable.proc; my_p < &ptable.proc[NPROC]; my_p++){
+        for(my_p = ptable.proc; (my_p < &ptable.proc[NPROC]) && (sched_type == 1); my_p++){
           if(min_acc>(my_p->accumulator) && my_p->state==RUNNABLE){
             min_acc=my_p->accumulator;
             p=my_p;
@@ -605,10 +605,9 @@ scheduler(void)
         break;
       case 2:
         pRunTimeRatio = 9999999.0;//max double value
-        // pRtime=INT_MAX;
         p=ptable.proc;
         if(DEBUGMODE) cprintf("proc.c: scheduler: sched 2: start iterate ptable\n");
-        for(my_p = ptable.proc; my_p < &ptable.proc[NPROC]; my_p++){
+        for(my_p = ptable.proc; (my_p < &ptable.proc[NPROC]) && (sched_type == 2); my_p++){
           if(my_p->state==RUNNABLE && ((my_p->retime) + (my_p->rtime) + (my_p->stime) )!= 0){
             if(DEBUGMODE) cprintf("proc.c: scheduler: sched 2: found runnable: check proc pid:%d, current miniml proc is pid:%d\n", my_p->pid,  p->pid);
             
