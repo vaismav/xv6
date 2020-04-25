@@ -168,9 +168,6 @@ mkfs: mkfs.c fs.h
 UPROGS=\
 	_cat\
 	_echo\
-	_helloworld\
-	_memsizetest\
-	_policy\
 	_forktest\
 	_grep\
 	_init\
@@ -184,7 +181,6 @@ UPROGS=\
 	_usertests\
 	_wc\
 	_zombie\
-	_sanity\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
@@ -252,7 +248,6 @@ qemu-nox-gdb: fs.img xv6.img .gdbinit
 # check in that version.
 
 EXTRA=\
-	sanity.c policy.c helloworld.c memsizetest.c\
 	mkfs.c ulib.c user.h cat.c echo.c forktest.c grep.c kill.c\
 	ln.c ls.c mkdir.c rm.c stressfs.c usertests.c wc.c zombie.c\
 	printf.c umalloc.c\

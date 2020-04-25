@@ -10,7 +10,6 @@
 int
 exec(char *path, char **argv)
 {
-  if(DEBUGMODE) cprintf("exec.c: exec: enter exec function with %s\n",path);
   char *s, *last;
   int i, off;
   uint argc, sz, sp, ustack[3+MAXARG+1];

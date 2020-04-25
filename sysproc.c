@@ -7,49 +7,6 @@
 #include "mmu.h"
 #include "proc.h"
 
-
-int
-sys_policy(void){
-  int policy_num;
-  if(argint(0, &policy_num) <0)
-    return -1;
-  policy(policy_num);
-  return 0;
-}
-
-int
-sys_set_ps_priority(void)
-{                            //Priority set 4.2
-  int new_priority;
-  if(argint(0, &new_priority) <0)
-    return -1;
-  set_ps_priority(new_priority);
-  return 0;
-}
-
-int
-sys_proc_info(void){          //The proc info 4.5
-  struct perf* preformance;
-  if(argptr(0,(char **)(&preformance),16)<0)
-    return -1;
-  return proc_info(preformance);
-
-}
-
-int 
-sys_set_cfs_priority(void){     //cfs priority 4.3
-  int new_priority;
-  if(argint(0, &new_priority) <0)
-    return -1;
-    
-  return set_cfs_priority(new_priority);
-}
-
-int
-sys_memsize(void){
-  return memsize();
-}
-
 int
 sys_fork(void)
 {
@@ -59,21 +16,14 @@ sys_fork(void)
 int
 sys_exit(void)
 {
-  int status;
-  if(argint(0, &status) <0)
-    return -1;
-  exit(status);
-  return 0; //not reached
+  exit();
+  return 0;  // not reached
 }
 
 int
 sys_wait(void)
 {
-  int *status;
-  if(argptr(0,(char **)(&status),4)<0)
-    return -1;
-
-  return wait(status);
+  return wait();
 }
 
 int

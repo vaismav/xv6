@@ -41,7 +41,6 @@ struct proc {
   char *kstack;                // Bottom of kernel stack for this process
   enum procstate state;        // Process state
   int pid;                     // Process ID
-  int status;                  // Process status
   struct proc *parent;         // Parent process
   struct trapframe *tf;        // Trap frame for current syscall
   struct context *context;     // swtch() here to run process
@@ -50,13 +49,6 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
-  //Added content
-  long long accumulator;       // Process accumulator 4.2
-  int ps_priority;             // Process priority  4.2
-  int cfs_priority;            // CFS sechdule priority
-  int rtime;                  // Time process was in running state
-  int stime;                  // Time process was in sleeping state.
-  int retime;                 // Time process was in ready/runnable state.
 };
 
 // Process memory is laid out contiguously, low addresses first:
@@ -64,9 +56,3 @@ struct proc {
 //   original data and bss
 //   fixed-size stack
 //   expandable heap
-
-/**void updateCFSstatistics(struct proc *p)
- * update the cfs data of @para p process
- * By Avishai
- */
-void updateCFSstatistics();

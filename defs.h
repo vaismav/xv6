@@ -10,9 +10,6 @@ struct sleeplock;
 struct stat;
 struct superblock;
 
-
-
-
 // bio.c
 void            binit(void);
 struct buf*     bread(uint, uint);
@@ -107,7 +104,7 @@ int             pipewrite(struct pipe*, char*, int);
 //PAGEBREAK: 16
 // proc.c
 int             cpuid(void);
-void            exit(int);
+void            exit(void);
 int             fork(void);
 int             growproc(int);
 int             kill(int);
@@ -120,15 +117,9 @@ void            sched(void);
 void            setproc(struct proc*);
 void            sleep(void*, struct spinlock*);
 void            userinit(void);
-int             wait(int*);
+int             wait(void);
 void            wakeup(void*);
 void            yield(void);
-// proc.c add functions
-int             set_cfs_priority(int);      //By Avishai
-int             set_ps_priority(int);       //By Maya
-int             memsize(void);              //Avishai
-int             policy(int);                //By Maya
-int             proc_info(struct perf*);    //By Maya
 
 // swtch.S
 void            swtch(struct context**, struct context*);
@@ -173,7 +164,6 @@ void            idtinit(void);
 extern uint     ticks;
 void            tvinit(void);
 extern struct spinlock tickslock;
-int             sched_type; //the scheduling type
 
 // uart.c
 void            uartinit(void);
