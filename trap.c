@@ -43,6 +43,7 @@ trap(struct trapframe *tf)
     syscall();
     if(myproc()->killed)
       exit();
+      //TODO:check the signal
     return;
   }
 

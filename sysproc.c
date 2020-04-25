@@ -12,6 +12,44 @@ sys_fork(void)
 {
   return fork();
 }
+//ours sigaction
+int 
+sys_sigaction(void){
+  int p_signum;
+  if(argint (0,&p_signum)<0)
+
+    return -1;
+  const struct sigaction *p_act;
+  if(argptr(1,&p_act,sizeof(struct sigaction))<0);
+    return -1;
+  struct sigaction *p_oldact;
+  if(argptr(2,&p_oldact,sizeof(struct sigaction))<0); 
+    return -1;
+
+  return sigaction(p_signum,p_act,p_oldact);
+  
+}
+
+/**void sigret(void)
+ * called implicitly when returning from user space after handling a signal. 
+ * This system call is responsible for restoring the process to its original workflow
+ */
+void
+sys_sigret(void){
+  //TODO:
+}
+
+/**sys_sigprocmask
+ * gets a uint value of the new signal mask
+ * should return value of old signal mask
+ */ 
+uint
+sys_sigprocmask(void){
+  uint mask;
+  if(argint(0, &mask) < 0)
+    return -1;
+  return sigprocmask(mask);
+}
 
 int
 sys_exit(void)
@@ -30,10 +68,14 @@ int
 sys_kill(void)
 {
   int pid;
+  int signum;
 
   if(argint(0, &pid) < 0)
     return -1;
-  return kill(pid);
+  if(argint(1, &signum) < 0)
+    return -1;
+
+  return kill(pid,signum);
 }
 
 int
@@ -76,6 +118,8 @@ sys_sleep(void)
   release(&tickslock);
   return 0;
 }
+
+
 
 // return how many clock tick interrupts have occurred
 // since start.

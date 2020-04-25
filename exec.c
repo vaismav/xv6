@@ -21,6 +21,11 @@ exec(char *path, char **argv)
 
   begin_op();
 
+  //returning all costume signals to default , exept SIG_ING, SIG_DFL
+  for(int i=2;i<32;i++){
+    curproc->signal_Handlers[i]=SIG_DFL;
+  }
+
   if((ip = namei(path)) == 0){
     end_op();
     cprintf("exec: fail\n");

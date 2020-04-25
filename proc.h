@@ -1,3 +1,4 @@
+
 // Per-CPU state
 struct cpu {
   uchar apicid;                // Local APIC ID
@@ -8,7 +9,10 @@ struct cpu {
   int ncli;                    // Depth of pushcli nesting.
   int intena;                  // Were interrupts enabled before pushcli?
   struct proc *proc;           // The process running on this cpu or null
+
 };
+
+
 
 extern struct cpu cpus[NCPU];
 extern int ncpu;
@@ -49,6 +53,15 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+                               //OURs
+  uint pending_Signals;    //32bit array, stored as type uint
+  uint signal_Mask;        //32bit array, stored as type uint
+  void* signal_Handlers[32];   //Array of size 32, of type void*
+  uint siganl_handlers_mask[32];//Array of the signal mask of the signal handlers
+  struct trapframe tf;
+  
+
+  
 };
 
 // Process memory is laid out contiguously, low addresses first:

@@ -20,10 +20,110 @@ extern void trapret(void);
 
 static void wakeup1(void *chan);
 
+
+void
+handleSignal(void){
+  struct proc *p= myproc();
+  unsigned char bit;
+  for(int signum=0;signum<32;signum++){
+    if(p->pending_Signals & 1U<<signum){         // checks if the signal is pending
+      if(p->signal_Mask & 1U<<signum){           // checks if the signal is blocked
+        //TODO: check if need to reset the signal indicator
+      }
+      else if(p->signal_Handlers[signum] != SIG_DFL){  //if signal is pendig and not blocked, checks if there is a specific sig handler
+        
+        void (*sigHandler)(int)=p->signal_Handlers[signum];
+        uint oldmask =sigprocmask(p->siganl_handlers_mask[signum]);
+        struct trapframe backup_tf = *(p->tf);
+        p->backup_tf=&backup_tf;
+        
+        (*sigHandler)(signum);
+        sigprocmask(oldmask);
+        sigret();
+      }
+      else{                                       //defult signal handling, if ignal is pendig, not blocked and without specifc handler
+        acquire(&ptable.lock);
+        switch(signum){
+          case SIGSTOP:
+            while(!(p->pending_Signals & 1U<<SIGCONT)){ //got sigcount
+              p->state=RUNNABLE; 
+              yield(); //give up cpu for another process 
+            }
+            p->pending_Signals ^1U<<SIGCONT;
+            p->pending_Signals ^1U<<SIGSTOP;
+            break;
+          case SIGCONT:
+            p->pending_Signals ^1U<<SIGCONT; 
+            break;
+          default: //default signal be
+            p->killed = 1;
+            // Wake process from sleep if necessary.
+            if(p->state == SLEEPING)
+              p->state = RUNNABLE;
+           
+        }
+        release(&ptable.lock);
+      }
+    }
+    
+  }
+  
+}
+
+/**void sigret(void)
+ * called implicitly when returning from user space after handling a signal. 
+ * This system call is responsible for restoring the process to its original workflow
+ */
+void
+sigret(void){
+  struct proc *p= myproc();
+  acquire(&ptable.lock);
+  
+  //TODO: complete
+  
+  release(&ptable.lock);
+}
+
+/**uint sigprocmask(uint)
+ * update the process signal mask, 
+ * return the value of old mask
+ */
+uint
+sigprocmask(uint newMask){
+  struct proc *p= myproc();
+  uint oldMask;
+  acquire(&ptable.lock);
+  oldMask=p->signal_Mask;
+  p->signal_Mask = newMask;
+  release(&ptable.lock);
+  return oldMask;
+}
+
 void
 pinit(void)
 {
   initlock(&ptable.lock, "ptable");
+}
+
+//2.1.4
+int
+sigaction(int signum, const struct sigaction *act, struct sigaction *oldact){
+  struct proc *p= myproc();
+  
+    if(signum==SIGKILL || signum==SIGSTOP)
+      return -1;
+    else{
+      acquire(&ptable.lock);
+      if(oldact!=0){
+      oldact->sa_handler = p->signal_Handlers[signum];
+      oldact->sigmask=p->siganl_handlers_mask[signum];
+      }
+      p->signal_Handlers[signum]=act->sa_handler;
+      p->siganl_handlers_mask[signum] = act->sigmask;
+      release(&ptable.lock);
+    
+      return 0;
+    }
 }
 
 // Must be called with interrupts disabled
@@ -103,7 +203,14 @@ found:
   release(&ptable.lock);
 
   p->pid = allocpid();
-
+  //Assignment2:updating signals fields of struct proc
+  int i;
+  for(i=0;i<32;i++){
+    p->signal_Handlers[i]=SIG_DFL;
+  }
+  p->pending_Signals= 0;
+  p->signal_Mask=0;
+  
   // Allocate kernel stack.
   if((p->kstack = kalloc()) == 0){
     p->state = UNUSED;
@@ -215,6 +322,13 @@ fork(void)
   np->sz = curproc->sz;
   np->parent = curproc;
   *np->tf = *curproc->tf;
+
+  //chile inherits signal mask & signal handlers from parent
+  np->signal_Mask=curproc->signal_Mask;
+  for(int i=0;i<32;i++){
+    np->signal_Handlers[i]=curproc->signal_Handlers[i];
+  }
+  
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
@@ -493,14 +607,17 @@ wakeup(void *chan)
 // Process won't exit until it returns
 // to user space (see trap in trap.c).
 int
-kill(int pid)
+kill(int pid, int signum)
 {
   struct proc *p;
-
+  if(signum < 0 ||  31 < signum){
+    cprintf("Error: proc.c: kill: ilegal signum value was sent to procces %d\n",pid);
+    return -1;
+  }
   acquire(&ptable.lock);
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->pid == pid){
-      p->killed = 1;
+      p->pending_Signals |= 1U << signum;//turn on the 'signum'th bit in pending_Signals uint
       // Wake process from sleep if necessary.
       if(p->state == SLEEPING)
         p->state = RUNNABLE;
