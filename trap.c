@@ -43,7 +43,8 @@ trap(struct trapframe *tf)
     syscall();
     if(myproc()->killed)
       exit();
-      //TODO:check the signal
+      // we go trough trap so need to handle the signals
+      handleSignal();
     return;
   }
 
@@ -93,7 +94,9 @@ trap(struct trapframe *tf)
             myproc()->pid, myproc()->name, tf->trapno,
             tf->err, cpuid(), tf->eip, rcr2());
     myproc()->killed = 1;
-  }
+
+   
+  } 
 
   // Force process exit if it has been killed and is in user space.
   // (If it is still executing in the kernel, let it keep running
@@ -110,4 +113,6 @@ trap(struct trapframe *tf)
   // Check if the process has been killed since we yielded
   if(myproc() && myproc()->killed && (tf->cs&3) == DPL_USER)
     exit();
+  
+  handleSignal();//TODO: is it ok here? ^~^
 }

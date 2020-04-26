@@ -58,7 +58,7 @@ struct proc {
   uint signal_Mask;        //32bit array, stored as type uint
   void* signal_Handlers[32];   //Array of size 32, of type void*
   uint siganl_handlers_mask[32];//Array of the signal mask of the signal handlers
-  struct trapframe tf;
+  struct trapframe *backup_tf;  //User tf backup
   
 
   
