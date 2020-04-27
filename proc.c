@@ -64,14 +64,15 @@ handleSignal(struct trapframe *tf){
           
           
           //backing up current signals mask
-          int oldmask =sigprocmask(p->siganl_handlers_mask[signum]);
+          p->signals_mask_backup =sigprocmask(p->siganl_handlers_mask[signum]);
           //backing up user trapframe
-          struct trapframe backup_tf = *tf;
+          p->tf=tf;
+          struct trapframe backup_tf = *tf; 
           p->backup_tf=&backup_tf;
           //pushing pointer for user esp and pushing the signum
           int pushedSignumOnTheStack = signum;
           //pushing the signal handler user function
-          void (*sigHandler)(int) = &sigret;
+          void (*retAddres)(void) = &sigret;
           //changing the instruction pointer (eip) to the signal handler 
           //so it will jump to the handler once exiting the trap
           tf->eip=p->siganl_handlers_mask[signum]; 
@@ -94,10 +95,9 @@ void
 sigret(void){
   struct proc *p= myproc();
   acquire(&ptable.lock);
-  
-  //TODO: complete
-  
+  *(p->tf)=*(p->backup_tf);
   release(&ptable.lock);
+  trapret();
 }
 
 /**uint sigprocmask(uint)

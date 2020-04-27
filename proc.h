@@ -54,11 +54,12 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
                                //OURs
-  uint pending_Signals;    //32bit array, stored as type uint
-  uint signal_Mask;        //32bit array, stored as type uint
+  uint pending_Signals;        //32bit array, stored as type uint
+  uint signal_Mask;            //32bit array, stored as type uint
   void* signal_Handlers[32];   //Array of size 32, of type void*
-  uint siganl_handlers_mask[32];//Array of the signal mask of the signal handlers
-  struct trapframe *backup_tf;  //User tf backup
+  uint siganl_handlers_mask[32];  //Array of the signal mask of the signal handlers
+  struct trapframe *backup_tf;   //User tf backup
+  uint signals_mask_backup;     //signals mask backup for user mode signal handlers     
   
 
   
