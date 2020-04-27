@@ -34,7 +34,7 @@ idtinit(void)
 
 //PAGEBREAK: 41
 void
-trap(struct trapframe *tf)
+trap(struct trapframe *tf) //tf= *[ebp+8] = parm1= address of esp*=777 ; &tf=778 = ebp+8
 {
   if(tf->trapno == T_SYSCALL){
     if(myproc()->killed)
@@ -44,7 +44,7 @@ trap(struct trapframe *tf)
     if(myproc()->killed)
       exit();
       // we go trough trap so need to handle the signals
-      handleSignal();
+      handleSignal(tf);
     return;
   }
 
@@ -114,5 +114,5 @@ trap(struct trapframe *tf)
   if(myproc() && myproc()->killed && (tf->cs&3) == DPL_USER)
     exit();
   
-  handleSignal();//TODO: is it ok here? ^~^
+  handleSignal(tf);//TODO: is it ok here? ^~^ here is great
 }

@@ -22,7 +22,7 @@ static void wakeup1(void *chan);
 
 
 void
-handleSignal(void){
+handleSignal(struct trapframe *tf){
   struct proc *p= myproc();
   unsigned char bit;
   for(int signum=0;signum<32;signum++){
@@ -30,40 +30,56 @@ handleSignal(void){
       if(p->signal_Mask & 1U<<signum){           // checks if the signal is blocked
         //TODO: check if need to reset the signal indicator
       }
-      else if(p->signal_Handlers[signum] != SIG_DFL){  //if signal is pendig and not blocked, checks if there is a specific sig handler
-        
-        void (*sigHandler)(int)=p->signal_Handlers[signum];
-        uint oldmask =sigprocmask(p->siganl_handlers_mask[signum]);
-        struct trapframe backup_tf = *(p->tf);
-        p->backup_tf=&backup_tf;
-        
-        (*sigHandler)(signum);
-        sigprocmask(oldmask);
-        sigret();
+      else switch((int)p->signal_Handlers[signum]){ //if signal is pendig and not blocked
+        case SIG_IGN: //
+          break;
+        case SIG_DFL: //defult signal handling, if ignal is pendig, not blocked and without specifc handler
+          acquire(&ptable.lock);
+          switch(signum){
+            case SIGSTOP:
+              while(!(p->pending_Signals & 1U<<SIGCONT)){ //got sigcount
+                p->state=RUNNABLE; 
+                yield(); //give up cpu for another process 
+              }
+              p->pending_Signals ^1U<<SIGCONT; //reset the SIGCONT
+              p->pending_Signals ^1U<<SIGSTOP; //reset the SIGSTOP
+              break;
+            
+            case SIGCONT:
+              // p->pending_Signals ^1U<<SIGCONT; //TODO: modify according to the fourm
+              break;
+            
+            default: //default signal be
+              p->killed = 1;
+              // Wake process from sleep if necessary.
+              if(p->state == SLEEPING)
+                p->state = RUNNABLE;
+                p->pending_Signals ^ 1U<<(uint)signum;
+            
+          }
+          release(&ptable.lock);
+          
+          break;
+        default:  //for every specific sig handler
+          
+          
+          //backing up current signals mask
+          int oldmask =sigprocmask(p->siganl_handlers_mask[signum]);
+          //backing up user trapframe
+          struct trapframe backup_tf = *tf;
+          p->backup_tf=&backup_tf;
+          //pushing pointer for user esp and pushing the signum
+          int pushedSignumOnTheStack = signum;
+          //pushing the signal handler user function
+          void (*sigHandler)(int) = &sigret;
+          //changing the instruction pointer (eip) to the signal handler 
+          //so it will jump to the handler once exiting the trap
+          tf->eip=p->siganl_handlers_mask[signum]; 
+          //TODO: check if we need to save the current esp as well
+          //exitig to exit trap()
+          return;
       }
-      else{                                       //defult signal handling, if ignal is pendig, not blocked and without specifc handler
-        acquire(&ptable.lock);
-        switch(signum){
-          case SIGSTOP:
-            while(!(p->pending_Signals & 1U<<SIGCONT)){ //got sigcount
-              p->state=RUNNABLE; 
-              yield(); //give up cpu for another process 
-            }
-            p->pending_Signals ^1U<<SIGCONT;
-            p->pending_Signals ^1U<<SIGSTOP;
-            break;
-          case SIGCONT:
-            p->pending_Signals ^1U<<SIGCONT; 
-            break;
-          default: //default signal be
-            p->killed = 1;
-            // Wake process from sleep if necessary.
-            if(p->state == SLEEPING)
-              p->state = RUNNABLE;
-           
-        }
-        release(&ptable.lock);
-      }
+      
     }
     
   }
