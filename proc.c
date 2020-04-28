@@ -28,12 +28,13 @@ handleSignal(struct trapframe *tf){
   for(int signum=0;signum<32;signum++){
     if(p->pending_Signals & 1U<<signum){         // checks if the signal is pending
       if(p->signal_Mask & 1U<<signum){           // checks if the signal is blocked
-        //TODO: check if need to reset the signal indicator
+        //TODO: check if need to reset the signal indicator - no need to resen SIG_IGN
       }
       else switch((int)p->signal_Handlers[signum]){ //if signal is pendig and not blocked
-        case SIG_IGN: //
+        case SIG_IGN: 
+          p->pending_Signals ^1U<<SIGCONT; //if the handler is SIG_IGN, then the bit should be reset - forum
           break;
-        case SIG_DFL: //defult signal handling, if ignal is pendig, not blocked and without specifc handler
+        case SIG_DFL: //defult signal handling, if signal is pendig, not blocked and without specifc handler
           acquire(&ptable.lock);
           switch(signum){
             case SIGSTOP:
@@ -46,7 +47,7 @@ handleSignal(struct trapframe *tf){
               break;
             
             case SIGCONT:
-              // p->pending_Signals ^1U<<SIGCONT; //TODO: modify according to the fourm
+              p->pending_Signals ^1U<<SIGCONT; //SIGCONT on a non stopped process will have no affect
               break;
             
             default: //default signal be
@@ -121,7 +122,8 @@ pinit(void)
   initlock(&ptable.lock, "ptable");
 }
 
-//2.1.4
+//A process wishing to register a custom handler for a specific signal
+//will use the following system call 
 int
 sigaction(int signum, const struct sigaction *act, struct sigaction *oldact){
   struct proc *p= myproc();
