@@ -20,10 +20,10 @@ sys_sigaction(void){
 
     return -1;
   const struct sigaction *p_act;
-  if(argptr(1,&p_act,sizeof(struct sigaction))<0);
+  if(argptr(1,(char **)&p_act,sizeof(struct sigaction))<0)
     return -1;
   struct sigaction *p_oldact;
-  if(argptr(2,&p_oldact,sizeof(struct sigaction))<0); 
+  if(argptr(2,(char **)&p_oldact,sizeof(struct sigaction))<0)
     return -1;
 
   return sigaction(p_signum,p_act,p_oldact);
@@ -36,7 +36,7 @@ sys_sigaction(void){
  */
 void
 sys_sigret(void){
-  //TODO:
+  return sigret(); //TODO: need it at all?
 }
 
 /**sys_sigprocmask
@@ -46,7 +46,7 @@ sys_sigret(void){
 uint
 sys_sigprocmask(void){
   uint mask;
-  if(argint(0, &mask) < 0)
+  if(argint(0, (int*)&mask) < 0)
     return -1;
   return sigprocmask(mask);
 }

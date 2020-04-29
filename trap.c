@@ -44,6 +44,8 @@ trap(struct trapframe *tf) //tf= *[ebp+8] = parm1= address of esp*=777 ; &tf=778
     if(myproc()->killed)
       exit();
       // we go trough trap so need to handle the signals
+    if(DEBUG) cprintf("trap.c: trap: trapno:T_SYSCALL:try to enter handleSignal with  proc address=%x \n",myproc());
+    if(myproc()!=0)
       handleSignal(tf);
     return;
   }
@@ -110,9 +112,10 @@ trap(struct trapframe *tf) //tf= *[ebp+8] = parm1= address of esp*=777 ; &tf=778
      tf->trapno == T_IRQ0+IRQ_TIMER)
     yield();
 
-  // Check if the process has been killed since we yielded
+  // Check if the process has been killed since we yielded  
   if(myproc() && myproc()->killed && (tf->cs&3) == DPL_USER)
     exit();
-  
-  handleSignal(tf);//TODO: is it ok here? ^~^ here is great
+  if(DEBUG) cprintf("trap.c: trap: end of trap function: try to enter handleSignal with  proc address=%x \n",myproc());
+  if(myproc()!=0)     //prevent from tring to handle signals when xv6 initalizing
+    handleSignal(tf);
 }
