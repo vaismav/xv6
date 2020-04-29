@@ -67,7 +67,28 @@ int testStateOfNewProc(struct proc* parentProc, struct proc* childProc){ //check
  * requested action: process will have pending kill signal
  */
 
+int testUtilites(void){
+    struct proc parentProc=*(myproc());
+    cprintf("TEST: uint sigprocmask(uint): \n");
+    if (fork()==0){
+       struct proc childProc=*(myproc());
+       uint old_mask=childProc.signal_Mask;
+       uint new_mask = 0;
+       new_mask |=1U<<3;
+       if(sigprocmask(new_mask)!=old_mask){
+            cprintf("TEST: uint sigprocmask(uint) doesnt return old mask \n");
+            exit();
+       }
+       if(new_mask!=childProc.signal_Mask){
+        cprintf("TEST: uint sigprocmask(uint) doesnt update mask\n");
+        exit();
+       }
+       cprintf("TEST: uint sigprocmask(uint): PASSED \n");
+    } 
+    wait();
+    cprintf("TEST: uint sigaction(): \n");
 
+}
 
 
 int main(int argc, char *argv[]){
@@ -75,8 +96,12 @@ int main(int argc, char *argv[]){
     struct proc childProc;
     parentProc=*(myproc());
     
-
-    testUtilites();
+    if(fork()==0){
+        testUtilites();
+        exit();  
+    }
+    else while(wait()!=-1){}
+        
    
    cprintf("TEST 1: create new proc from default proc settings\n");
     if(fork()==0){
@@ -90,6 +115,8 @@ int main(int argc, char *argv[]){
     }
     wait();
     cprintf("TEST 2: create new proc with custom signal mask and custom signal handlers\n");
+
+    
 
     
     
