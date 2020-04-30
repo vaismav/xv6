@@ -86,8 +86,79 @@ int testUtilites(void){
        cprintf("TEST: uint sigprocmask(uint): PASSED \n");
     } 
     wait();
-    cprintf("TEST: uint sigaction(): \n");
 
+    cprintf("TEST: uint sigaction(): \n");
+    if(fork()==0){
+        struct proc childProc=*(myproc());
+        //init sigaction *act
+        struct sigaction *act;
+        act->sa_handler=childProc.signal_Handlers[SIGCONT]; //?
+        act->sigmask=childProc.siganl_handlers_mask[SIGCONT]; //sigcont is down
+        //init sigaction *oldact
+        struct sigaction *oldact;
+        oldact->sa_handler=childProc.signal_Handlers[SIGCONT]; //?
+        oldact->sigmask=childProc.siganl_handlers_mask[SIGCONT]; //sigcont is down
+
+        //TEST: should not chage SIGKILL SIGSTOP
+        if((sigaction(SIGKILL,act,null)==0)||(sigaction(SIGSTOP,act,null)==0)){
+            cprintf("TEST: uint sigaction(): changes SIGKILL SIGSTOP\n");
+            exit(); //needed?
+        }
+        //change childProc mask in SIGCONT
+        uint new_mask = 0;
+        new_mask |=1U<<19; //sigcont is up
+        sigprocmask(new_mask);
+        //TEST: oldact null
+        if(sigaction(SIGCONT,act,null)!=0){
+            cprintf("TEST: uint sigaction(): faild to set process fields from act\n");
+                exit();
+        }
+        if(childProc.signal_Handlers[SIGCONT]!=act->sa_handler){
+              cprintf("TEST: uint sigaction(): not changing process signal handlers\n");
+              exit();
+        }
+        if(childProc.siganl_handlers_mask[SIGCONT]!= act->sigmask){ //sigcont should be down
+            cprintf("TEST: uint sigaction(): not changing process signal handlers mask\n");
+            exit();
+        }
+        //change childProc mask in SIGCONT 
+        uint new_mask = 0;
+        new_mask |=1U<<19; //sigcont is up
+        sigprocmask(new_mask);
+        //TEST: oldact not null
+        if(sigaction(SIGCONT,act,oldact)!=0){
+            cprintf("TEST: uint sigaction(): faild to set oldact fields\n");
+            exit();
+        }
+        if(oldact->sa_handler != childProc.signal_Handlers[SIGCONT]){
+            cprintf("TEST: uint sigaction(): not changing oldact signal handlers\n");
+            exit();
+        }
+         if(oldact->sigmask!=childProc.siganl_handlers_mask[SIGCONT]){ //sigcont should be down
+            cprintf("TEST: uint sigaction(): not changing oldact sigmask\n");
+            exit();
+         }
+         cprintf("TEST: uint sigaction(): PASSED \n");
+    } wait();
+    
+     cprintf("TEST: uint sigret(): \n"); //TODO: how to check
+     if(fork()==0){
+         struct proc childProc=*(myproc());
+
+
+     } wait();
+
+      cprintf("TEST: uint kill(int,int): \n"); 
+     if(fork()==0){
+         struct proc childProc=*(myproc());
+         kill(0,SIGKILL);
+         if((childProc.pending_Signals<<SIGKILL)==0){
+             cprintf("TEST: uint kill(int,int): didnt get the SIGKILL \n");
+             exit();
+         }
+         cprintf("TEST: uint kill(int,int): PASSED \n");
+     } wait();
+    return 0;
 }
 
 
