@@ -284,7 +284,7 @@ found:
   p->tf = (struct trapframe*)sp;
 
   // Set up new context to start executing at forkret,
-  // which returns to trapret.
+  // which returns to trapret.n
   sp -= 4;
   *(uint*)sp = (uint)trapret;
 
@@ -676,7 +676,7 @@ kill(int pid, int signum)
 {
   if (DEBUG) cprintf("proc.c: kill:  signum= %d sent to pid = %d, from proc:%d\n",signum,pid,myproc()->pid);
   struct proc *p;
-  if(signum < 0 ||  31 < signum){ //TODO: change to signum!=SIGKILL ???
+  if(signum < 0 ||  31 < signum){ 
     cprintf("Error: proc.c: kill: ilegal signum value was sent to procces %d\n",pid);
     return -1;
   }

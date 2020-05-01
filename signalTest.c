@@ -7,6 +7,12 @@
 #include "proc.h"
 #include "spinlock.h"
 
+int fibo(int n){
+  if(n<=2 )
+  return 1;
+  return fibo(n-2) + fibo(n-1);
+}
+
 
 /** test state of new proc
  * checs if all of proc fields are initialized correctly
@@ -15,21 +21,21 @@
  * requsted result:
  * p->pending_Signals= 0;
  * p->signal_Mask= parentProc->signal_Mask;
- * for each sigHand in p->signal_Handlers: sigHand=SIG_DFL;
+ * for each sigHand in p->signal_Handlers=parent->signal_Handlers;
  */
 
 int testStateOfNewProc(struct proc* parentProc, struct proc* childProc){ //checking new proc 
         if(childProc->pending_Signals!=0){
-         cprintf("new child p's pending signal not default");
+         fprintf(1,"new child p's pending signal not default");
             return -1;
         } 
         if(childProc->signal_Mask!=parentProc->signal_Mask){
-               cprintf("new child p's signal_mask not as parent's");
+               fprintf(1,"new child p's signal_mask not as parent's");
                return -1;
         }
         
         for(int i=0; i<32; i++){
-            if(childProc->signal_Handlers[i]!=SIG_DFL){
+            if(childProc->signal_Handlers[i]!=parentProc->signal_Handlers[i]){
                 cprintf("new child p's %d handler not default", i);
                 return -1;
             }
@@ -66,59 +72,67 @@ int testStateOfNewProc(struct proc* parentProc, struct proc* childProc){ //check
  * test-action: kill process
  * requested action: process will have pending kill signal
  */
+ void handler(int signum){ //handler to change to 
+        fprintf(1,"Hello\n");
+    }
 
 int testUtilites(void){
     struct proc parentProc=*(myproc());
-    cprintf("TEST: uint sigprocmask(uint): \n");
+    fprintf(1,"TEST: uint sigprocmask(uint): \n");
     if (fork()==0){
        struct proc childProc=*(myproc());
        uint old_mask=childProc.signal_Mask;
        uint new_mask = 0;
        new_mask |=1U<<3;
        if(sigprocmask(new_mask)!=old_mask){
-            cprintf("TEST: uint sigprocmask(uint) doesnt return old mask \n");
+            fprintf(1,"TEST: uint sigprocmask(uint) doesnt return old mask \n");
             exit();
        }
        if(new_mask!=childProc.signal_Mask){
-        cprintf("TEST: uint sigprocmask(uint) doesnt update mask\n");
+        fprintf(1,"TEST: uint sigprocmask(uint) doesnt update mask\n");
         exit();
        }
-       cprintf("TEST: uint sigprocmask(uint): PASSED \n");
+       fprintf(1,"TEST: uint sigprocmask(uint): PASSED \n");
+       exit();
     } 
     wait();
 
-    cprintf("TEST: uint sigaction(): \n");
+    fprintf(1,"TEST: uint sigaction(): \n");
     if(fork()==0){
-        struct proc childProc=*(myproc());
-        //init sigaction *act
-        struct sigaction *act;
-        act->sa_handler=childProc.signal_Handlers[SIGCONT]; //?
-        act->sigmask=childProc.siganl_handlers_mask[SIGCONT]; //sigcont is down
-        //init sigaction *oldact
-        struct sigaction *oldact;
-        oldact->sa_handler=childProc.signal_Handlers[SIGCONT]; //?
-        oldact->sigmask=childProc.siganl_handlers_mask[SIGCONT]; //sigcont is down
+   
+        struct proc *childProc=myproc();
+        //init sigaction act
+        struct sigaction act;
+        memset (&act, 0, sizeof (act)); 
+        act.sa_handler=&handler;
+        act.sigmask=childProc->siganl_handlers_mask[SIGCONT]; //sigcont is down
+        //init sigaction oldact
+        struct sigaction oldact;
+        memset (&oldact, 0, sizeof (oldact));
+        oldact.sa_handler=&handler;
+        oldact.sigmask=childProc->siganl_handlers_mask[SIGCONT]; //sigcont is down
 
-        //TEST: should not chage SIGKILL SIGSTOP
-        if((sigaction(SIGKILL,act,null)==0)||(sigaction(SIGSTOP,act,null)==0)){
-            cprintf("TEST: uint sigaction(): changes SIGKILL SIGSTOP\n");
-            exit(); //needed?
+        //TEST: try to chage SIGKILL SIGSTOP, should fail
+        if((sigaction(SIGKILL,&act,null)==0)||(sigaction(SIGSTOP,&act,null)==0)){
+            fprintf(1,"TEST: uint sigaction(): changes SIGKILL SIGSTOP\n");
+            exit(); 
         }
         //change childProc mask in SIGCONT
         uint new_mask = 0;
         new_mask |=1U<<19; //sigcont is up
         sigprocmask(new_mask);
+
         //TEST: oldact null
-        if(sigaction(SIGCONT,act,null)!=0){
-            cprintf("TEST: uint sigaction(): faild to set process fields from act\n");
+        if(sigaction(SIGCONT,&act,null)!=0){
+            fprintf(1,"TEST: uint sigaction(): faild to set process fields from act\n");
                 exit();
         }
-        if(childProc.signal_Handlers[SIGCONT]!=act->sa_handler){
-              cprintf("TEST: uint sigaction(): not changing process signal handlers\n");
+        if(childProc->signal_Handlers[SIGCONT]!=act.sa_handler){ //should be handler
+              fprintf(1,"TEST: uint sigaction(): not changing process signal handlers\n");
               exit();
         }
-        if(childProc.siganl_handlers_mask[SIGCONT]!= act->sigmask){ //sigcont should be down
-            cprintf("TEST: uint sigaction(): not changing process signal handlers mask\n");
+        if(childProc->siganl_handlers_mask[SIGCONT]!= act.sigmask){ //sigcont should be down
+            fprintf(1,"TEST: uint sigaction(): not changing process signal handlers mask\n");
             exit();
         }
         //change childProc mask in SIGCONT 
@@ -126,47 +140,83 @@ int testUtilites(void){
         new_mask |=1U<<19; //sigcont is up
         sigprocmask(new_mask);
         //TEST: oldact not null
-        if(sigaction(SIGCONT,act,oldact)!=0){
-            cprintf("TEST: uint sigaction(): faild to set oldact fields\n");
+        if(sigaction(SIGCONT,&act,&oldact)!=0){
+            fprintf(1,"TEST: uint sigaction(): faild to set oldact fields\n");
             exit();
         }
-        if(oldact->sa_handler != childProc.signal_Handlers[SIGCONT]){
-            cprintf("TEST: uint sigaction(): not changing oldact signal handlers\n");
+        if(oldact.sa_handler != childProc->signal_Handlers[SIGCONT]){ //should as child's
+            fprintf(1,"TEST: uint sigaction(): not changing oldact signal handlers\n");
             exit();
         }
-         if(oldact->sigmask!=childProc.siganl_handlers_mask[SIGCONT]){ //sigcont should be down
-            cprintf("TEST: uint sigaction(): not changing oldact sigmask\n");
+         if(oldact.sigmask!=childProc->siganl_handlers_mask[SIGCONT]){ //sigcont should be down
+            fprintf(1,"TEST: uint sigaction(): not changing oldact sigmask\n");
             exit();
          }
-         cprintf("TEST: uint sigaction(): PASSED \n");
-    } wait();
-    
-     cprintf("TEST: uint sigret(): \n"); //TODO: how to check
+         fprintf(1,"TEST: uint sigaction(): PASSED \n");
+         exit();
+    } 
+    wait();
+
+
+    fprintf(1,"TEST: uint kill(int,int): \n"); 
      if(fork()==0){
-         struct proc childProc=*(myproc());
-
-
-     } wait();
-
-      cprintf("TEST: uint kill(int,int): \n"); 
-     if(fork()==0){
-         struct proc childProc=*(myproc());
+         struct proc *childProc=myproc();
          kill(0,SIGKILL);
-         if((childProc.pending_Signals<<SIGKILL)==0){
-             cprintf("TEST: uint kill(int,int): didnt get the SIGKILL \n");
+         if(!(childProc->killed)){
+             fprintf(1,"TEST: uint kill(int,int): didnt get the SIGKILL \n");
              exit();
          }
-         cprintf("TEST: uint kill(int,int): PASSED \n");
-     } wait();
+        fprintf(1,"TEST: uint kill(int,int): PASSED \n");
+        exit();
+     } 
+     wait();
     return 0;
 }
 
 
+
+void resetInitProc(void){
+    struct sigaction backup_sigact;
+    backup_sigact.sa_handler=SIG_DFL;
+    backup_sigact.sigmask=DFL_SIGMASK;
+    sigprocmask(DFL_SIGMASK);
+    for(int i=0; i<32; i++){
+        sigaction(i,&backup_sigact,null);
+    }
+}
+
+void check_exec(){
+    struct proc curr_procces=*(myproc());
+    for(int i=2; i<32; i++){            
+        if(i==0 || i==1){
+            if(curr_procces.signal_Handlers[i]!=&handler)
+                fprintr(1,"exec didnt changed SIG_IGN | SIG_DFL");
+                exit();
+            }
+        if(curr_procces.signal_Handlers[i]!=SIG_DFL){
+            fprintr(1,"exec didnt change handlers to SIG_DFL");
+            exit();
+        }
+        fprintr(1,"TEST 3: PASSED");
+        exit();
+   }
+}
+
+
+
+
 int main(int argc, char *argv[]){
+    if(argc>1){
+        if(argv[1]=="exec"){
+            check_exec();
+        }
+    }
     struct proc parentProc;
     struct proc childProc;
+    int i,cpid1,cpid2,finishedFirst,stopTheLoop;
+
     parentProc=*(myproc());
-    
+    resetInitProc();
     if(fork()==0){
         testUtilites();
         exit();  
@@ -174,29 +224,112 @@ int main(int argc, char *argv[]){
     else while(wait()!=-1){}
         
    
-   cprintf("TEST 1: create new proc from default proc settings\n");
+   fprintf(1,"TEST 1: create new proc from default proc settings\n");
     if(fork()==0){
         childProc=*(myproc());
         if(testStateOfNewProc(&parentProc,&childProc)!=0){ //basic
-            cprintf("proc fields are NOT initialized correctly after fork ");
+            fprintf(1,"proc fields are NOT initialized correctly after fork ");
             return -1;
         } 
-        cprintf("TEST 1 PASSED\n");
+        fprintf(1,"TEST 1 PASSED\n");
         exit();
     }
     wait();
-    cprintf("TEST 2: create new proc with custom signal mask and custom signal handlers\n");
-
+    fprintf(1,"TEST 2: create new proc with custom signal mask and custom signal handlers\n");
+    //chenging the parentProc
     
+    struct sigaction sig_act;
+    memset (&sig_act, 0, sizeof (sig_act));
+    sig_act.sa_handler=&handler;
+    sig_act.sigmask=DFL_SIGMASK;
+    uint new_mask = 0;
+    for(int i=1; i<32; i++){ 
+        sigaction(i,&sig_act,null);
+        if(i!=9)
+            new_mask |=1U<<i; //sigcont is up
+    }
+    sigprocmask(new_mask);
+    
+    if(fork()==0){
+        childProc=*(myproc());
+        if(testStateOfNewProc(&parentProc,&childProc)!=0){ //basic
+            fprintf(1,"proc fields are NOT initialized correctly after fork ");
+            return -1;
+        } 
+        fprintf(1,"TEST 2 PASSED\n");
+        fprintf(1,"TEST 3: create new proc with custom signal mask and custom signal handlers\n");
+        //call exec "siganlTest --exec"
+        char* arg ='exec';
+        exec("signalTest",&arg);
+     
+    }
+     wait();
 
+
+    resetInitProc();
+    fprintf(1,"TEST 4: check SIGSTOP and SIGCONT behavor\n");
+    stopTheLoop=0;
+    for(i=0; i<10 & !stopTheLoop;i++){
+        cpid1=fork();
+        if(cpid1==0){
+            fibo(25);
+            exit();
+        }
+        //PROC2 will stop PROC1
+        if(kill(cpid1,SIGSTOP)!=0){
+            //main porcess kill cpid1 and start new test
+            cprintf("TEST 4: run N0 %d: couldnt sent SIGSTOP to cpid1\n",i);
+            //start next step of the for loop
+            continue; 
+        }
+        else{
+            //SIGSTOP sent succussfuly
+            //strat running of PROC2
+            cpid2=fork();
+            if(cpid2==0){
+                fibo(37);
+                if(kill(cpid1,SIGCONT)!=0){
+                    //failed to send SIGCONT
+                    fprintf(1,"TEST 4: couldnt sent SIGCONT to cpid1\n");
+                }
+                exit();                
+            }
+        }
+        //main process checks who finished first 
+        finishedFirst=wait();
+        wait();
+        //check if one of the 2 fork action has failed
+        if(cpid1 == -1 || cpid2 ==-1){
+            stopTheLoop=1;
+            fprintf(1,"TEST 4: wasnt able to do fork()\n"); 
+        }
+        //check if cpid2 finished before cpid1
+        else if(finishedFirst==cpid2){
+            cprintf("TEST 4: run N0 %d PASSED (cpid1 finished after cpid2\n",i);
+        }
+        //FAILD: cpid1 finished before cpid2 (means cpid2 didnt stop cpid1)
+        else if(finishedFirst==cpid1){
+            
+            fprintf(1,"TEST 4: cpid1 finished before cpid2\n"); 
+            stopTheLoop=1;
+        }
+        //unpredictable pid 
+        else{ 
+            cprintf("TEST 4: PANIC: something accured and PID of finishedFirst=%d (cpid1=%d, cpid2=%d)\n",finishedFirst,cpid1,cpid2);
+        }  
+    }
+    //if error accured in the test
+    if(stopTheLoop){
+        fprintf(1,"TEST 4: FAILED\n");
+        exit();
+    }
+    //if passed TEST 4
+    else{
+        fprintf(1,"TEST 4: PASSED\n");
+    }
     
     
-
-        
-    
-    //TEST 2: create new proc with custom signal mask and custom signal handlers
-
-    //TEST 3: sigaction & sigret 
+    //TEST 3: handler & sigret
 
     return 0;
 }
