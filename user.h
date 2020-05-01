@@ -25,6 +25,7 @@ int sleep(int);
 int uptime(void);
 int sigaction(int, const struct sigaction* ,struct sigaction* );
 uint sigprocmask(uint);
+int getProcSignalsData(struct procSignalsData*);
 
 // ulib.c
 int stat(const char*, struct stat*);

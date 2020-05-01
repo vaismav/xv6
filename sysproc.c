@@ -36,7 +36,7 @@ sys_sigaction(void){
  */
 void
 sys_sigret(void){
-  return sigret(); //TODO: need it at all?
+  return sigret(); 
 }
 
 /**sys_sigprocmask
@@ -83,6 +83,23 @@ sys_getpid(void)
 {
   return myproc()->pid;
 }
+int
+sys_getProcSignalsData(void){
+  struct procSignalsData *output;
+  if(argptr(1,(char **)&output,sizeof(struct procSignalsData))<0)
+    return -1;
+  if(output==null)
+    return -1;
+  struct proc* p=myproc();
+  output->killed=&(p->killed);
+  output->pending_Signals = p->pending_Signals;           //32bit array, stored as type uint
+  output->signal_Mask = p->signal_Mask;               //32bit array, stored as type uint
+  *(output->signal_Handlers) = *(p->signal_Handlers);      //Array of size 32, of type void*
+  *(output->siganl_handlers_mask) = *(p->siganl_handlers_mask);  //Array of the signal mask of the signal handlers
+  return 0;
+}
+
+
 
 int
 sys_sbrk(void)
