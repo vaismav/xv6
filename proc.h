@@ -71,4 +71,4 @@ struct proc {
 //   fixed-size stack
 //   expandable heap
 
-void            handleSignal(struct trapframe*);
+void handleSignal(struct trapframe*);

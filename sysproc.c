@@ -17,7 +17,6 @@ int
 sys_sigaction(void){
   int p_signum;
   if(argint (0,&p_signum)<0)
-
     return -1;
   const struct sigaction *p_act;
   if(argptr(1,(char **)&p_act,sizeof(struct sigaction))<0)
@@ -45,10 +44,10 @@ sys_sigret(void){
  */ 
 uint
 sys_sigprocmask(void){
-  uint mask;
-  if(argint(0, (int*)&mask) < 0)
+  int mask;
+  if(argint(0, &mask)< 0)
     return -1;
-  return sigprocmask(mask);
+  return sigprocmask((uint)mask);
 }
 
 int
