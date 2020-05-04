@@ -38,7 +38,7 @@ trap(struct trapframe *tf) //tf= *[ebp+8] = parm1= address of esp*=777 ; &tf=778
 {
   
   if(tf->trapno == T_SYSCALL){
-    if((DEBUG && 0) && ( myproc() !=0)&& (myproc()->pid >2)) cprintf("trap.c: trap: ENTERED TRAP for SYSCALL with PID:%d\n",myproc()->pid);
+    if((DEBUG || 1) &&  (myproc()->pid >2) && (tf->eax >21 || tf->eax == 6)) cprintf("PID %d: trap.c: trap: ENTERED TRAP for SYSCALL with syscall %d \n",myproc()->pid,tf->eax);
     if(myproc()->killed)
       exit();
     myproc()->tf = tf;
@@ -46,10 +46,10 @@ trap(struct trapframe *tf) //tf= *[ebp+8] = parm1= address of esp*=777 ; &tf=778
     if(myproc()->killed)
       exit();
       // we go trough trap so need to handle the signals
-    if(DEBUG) cprintf("trap.c: trap: trapno:T_SYSCALL:try to enter handleSignal with  proc address=%x \n",myproc());
+    if(DEBUG) cprintf("PID %d: trap.c: trap: trapno:T_SYSCALL:try to enter handleSignal with  proc address=%x \n",myproc()->pid ,myproc());
     if(myproc()!=0){
       handleSignal(tf);
-      if((DEBUG && 0)&& (myproc()->pid >2)) cprintf("trap.c: trap: EXIT TRAP after SYSCALL with PID:%d\n",myproc()->pid);
+      if((DEBUG || 1)&& (myproc()->pid >2) && (tf->eax >21 || tf->eax == 6)) cprintf("PID %d: trap.c: trap: EXIT TRAP after SYSCALL \n",myproc()->pid);
     }
 
     
@@ -138,6 +138,7 @@ trap(struct trapframe *tf) //tf= *[ebp+8] = parm1= address of esp*=777 ; &tf=778
 
 
 void callSigret(void){
+  if(DEBUG || 1) cprintf("PID %d: trap.c: callSigret: entered function \n",myproc()->pid);
   sigret();
 }
 void endOfSigret(void){}
@@ -208,19 +209,21 @@ handleSignal(struct trapframe *tf){
             
             break;
           default:  //for every specific sig handler
-            if(DEBUG || 1) cprintf("trap.c: handleSignal: handling user handler for signal:%d on pid: %d\n",signum,p->pid); 
+          
+            if(DEBUG || 1) cprintf("PID %d: trap.c: handleSignal: handling user handler for signal:%d on pid: %d\n",p->pid,signum); 
             //reseting the signal pending bit
             resetPendingSignal(p, (uint)signum);
-            if(DEBUG || 1) cprintf("trap.c: handleSignal: reset pending signals %d\n",signum,p->pid);
+            if(DEBUG || 1) cprintf("PID %d: trap.c: handleSignal: reset pending signals %d on pid:%d\n",p->pid,signum);
             //backing up current signals mask
             p->signals_mask_backup =sigprocmask(p->siganl_handlers_mask[signum]);
-            if(DEBUG || 1) cprintf("trap.c: handleSignal: backupd signal_mask %d\n",signum,p->pid);
+            if(DEBUG || 1) cprintf("PID %d:trap.c: handleSignal: backupd signal_mask %d \n",p->pid,signum);
             //backing up user trapframe
-            *(p->backup_tf)=*tf;
+            *(p->backup_tf+ sizeof(p->backup_tf))=*(tf+sizeof(tf));
             //pushing pointer for user esp and pushing the signum
+            if(DEBUG || 1) cprintf("PID %d:trap.c: handleSignal: before pushing sgnum to esp signum = %d \n",p->pid,signum);
             tf->esp -=sizeof(int);
             memmove((void*)(tf->esp-4),&signum,sizeof(uint));
-            
+            if(DEBUG || 1) cprintf("PID %d: trap.c: handleSignal: after pushing sgnum to esp signum = %d \n",p->pid,signum);
             //pushing the signal handler user function
             
             // uint* returnAddress=(uint*)tf->esp;
@@ -232,17 +235,18 @@ handleSignal(struct trapframe *tf){
 
             //changing the instruction pointer (eip) to the signal handler 
             //so it will jump to the handler once exiting the trap
-            if(DEBUG || 1) cprintf("proc.c: handleSignal: putting  0x%x  in tf->eip \n",p->signal_Handlers[signum]);
+            if(DEBUG || 1) cprintf("trap.c: handleSignal: about to change eip: signum = %d \n",signum);
+            if(DEBUG || 1) cprintf("trap.c: handleSignal: putting  p->signal_Handlers[signum] = 0x%x  in tf->eip \n",p->signal_Handlers[signum]);
             tf->eip=(uint)p->signal_Handlers[signum]; 
             
             //exitig to exit trap()
-            if(DEBUG || 1) cprintf("proc.c: handleSignal: exit back to trap with tf->eip = 0x%x \n",tf->eip); 
+            if(DEBUG || 1) cprintf("trap.c: handleSignal: exit back to trap with tf->eip = 0x%x \n",tf->eip); 
             return;
         }
       }
     
     }
-    if(DEBUG) cprintf("proc.c: handleSignal: finish handling signum %d, moving to the next signal\n",signum); 
+    if(DEBUG) cprintf("trap.c: handleSignal: finish handling signum %d, moving to the next signal\n",signum); 
   }
-  if(p!=0 && DEBUG) cprintf("proc.c: handleSignal: exit back to trap\n"); 
+  if(p!=0 && DEBUG) cprintf("trap.c: handleSignal: exit back to trap\n"); 
 }

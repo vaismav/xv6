@@ -2,7 +2,7 @@
 #include "stat.h"
 #include "user.h"
 
-
+int test5_flag = 1;
 
 
 int fibo(int n){
@@ -77,8 +77,7 @@ int testStateOfNewProc(struct procSignalsData* parentProc, struct procSignalsDat
 
 void handler1(int signum){ //handler to change to 
     printf(1,"Hello#####################################################################################################\n");
-    kill(getpid(),SIGKILL);
-    exit();
+     test5_flag =0;
 }
 
 int testUtilites(void){
@@ -358,6 +357,8 @@ int main(int argc, char* argv[]){
     }
     
     */
+
+
     //TEST 5: handler & sigret
     printf(1,"TEST 5: check user handler behavor\n");
     cpid1=fork();
@@ -383,13 +384,18 @@ int main(int argc, char* argv[]){
                printf(1,"TEST 5: failed to send kill(cpid1,5) \n",getpid(),cpid1); 
             }
             
-            exit();
+            kill(getpid(),SIGKILL);
         }
-        while(1){
+        while(test5_flag ){
             dummy1 = !dummy1;
         }
+        printf(1,"PID %d: TEST 5: got out of while loop after reciveing signum 5 and using user handler! \n",getpid());
+        printf(1,"PID %d: TEST 5: PASSED \n",getpid());
+        kill(getpid(),SIGKILL);
     }
     wait();
     wait();
+    printf(1,"PID %d: TEST 5: FINISHED \n",getpid());
+    exit();
     return 0;
 }

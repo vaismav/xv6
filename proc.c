@@ -32,8 +32,9 @@ static void wakeup1(void *chan);
 void
 sigret(void){
   struct proc *p= myproc();
+  if(DEBUG || 1) cprintf("PID %d: proc.c: sigret: entered function \n",p->pid);
   acquire(&ptable.lock);
-  *(p->tf)=*(p->backup_tf);
+  *(p->tf +sizeof(struct trapframe))=*(p->backup_tf +sizeof(struct trapframe));
   release(&ptable.lock);
   //trapret(); //TODO: do not need it beacuse goes thogh trap on way to kernal
 }
@@ -175,6 +176,12 @@ found:
     p->state = UNUSED;
     return 0;
   }
+  // // Allocate backup trapframe 
+  // if((p->backup_tf = (struct trapframe*)kalloc()) == 0){
+  //   p->state = UNUSED;
+  //   return 0;
+  // }
+  
   sp = p->kstack + KSTACKSIZE;
 
   // Leave room for trap frame.
