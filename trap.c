@@ -49,7 +49,7 @@ trap(struct trapframe *tf) //tf= *[ebp+8] = parm1= address of esp*=777 ; &tf=778
     if(DEBUG) cprintf("PID %d: trap.c: trap: trapno:T_SYSCALL:try to enter handleSignal with  proc address=%x \n",myproc()->pid ,myproc());
     if(myproc()!=0){
       handleSignal(tf);
-      if((DEBUG || 1)&& (myproc()->pid >2) && (tf->eax >21 || tf->eax == 6)) cprintf("PID %d: trap.c: trap: EXIT TRAP after SYSCALL \n",myproc()->pid);
+      if((DEBUG || 1)&& (myproc()->pid >2) && (tf->eax >21 || tf->eax == 6)) cprintf("PID %d: trap.c: trap: EXIT TRAP after SYSCALL with syscall %d \n",myproc()->pid,tf->eax);
     }
 
     
@@ -155,49 +155,49 @@ resetPendingSignal(struct proc *p ,uint signum){
 void
 handleSignal(struct trapframe *tf){
   struct proc *p= myproc();
-  if(p!=0 && (DEBUG)) cprintf("trap.c: handleSignal: entered function\n");
+  if(p!=0 && (DEBUG)) cprintf("PID %d: trap.c: handleSignal: entered function\n",p->pid);
   for(int signum=0; signum<32;signum++){
-    if(DEBUG) cprintf("trap.c: handleSignal:signals loop: checking signum %d \n",signum);
+    if(DEBUG) cprintf("PID %d: trap.c: handleSignal:signals loop: checking signum %d \n",p->pid,signum);
     // checks if the signal is pending
     if(p->pending_Signals & (1U<<signum)){         
-      if(DEBUG) cprintf("trap.c: handleSignal:%d is a pending signal\n",signum);
+      if(DEBUG) cprintf("PID %d: trap.c: handleSignal:%d is a pending signal\n",p->pid,signum);
       // checks if the signal is blocked
       if(p->signal_Mask & 1U<<signum){          
         //no need to reset SIG_IGN 
-        if(DEBUG || 1) cprintf("trap.c: handleSignal: %d is a pending and blocked signal\n",signum);
+        if(DEBUG || 1) cprintf("PID %d: trap.c: handleSignal: %d is a pending and blocked signal\n",p->pid,signum);
       }
       else {
         //if signal is pendig and not blocked
-        if(DEBUG || 1 ) cprintf("trap.c: handleSignal:%d is a pending signal and not blocked.\n",signum);
-        if(DEBUG || 1 ) cprintf("trap.c: handleSignal: p->signal_Handlers[%d] = %x \n",signum,p->signal_Handlers[signum]);
+        if(DEBUG || 1 ) cprintf("PID %d: trap.c: handleSignal:%d is a pending signal and not blocked.\n",p->pid,signum);
+        if(DEBUG || 1 ) cprintf("PID %d: trap.c: handleSignal: p->signal_Handlers[%d] = %x \n",p->pid,signum,p->signal_Handlers[signum]);
         switch((int)p->signal_Handlers[signum]){ 
           case SIG_IGN:
-            if(DEBUG) cprintf("trap.c: handleSignal: default handler for SIG_IGN\n"); 
+            if(DEBUG) cprintf("PID %d: trap.c: handleSignal: default handler for SIG_IGN\n",p->pid); 
             resetPendingSignal(p,SIG_IGN); //if the handler is SIG_IGN, then the bit should be reset - forum
             break;
           case SIG_DFL: //defult signal handling, if signal is pendig, not blocked and without specifc handler
-            if(DEBUG) cprintf("trap.c: handleSignal:defaulr handler for SIG_DFL \n",signum);
+            if(DEBUG) cprintf("PID %d: trap.c: handleSignal:defaulr handler for SIG_DFL \n,p->pid",signum);
             switch(signum){
 
               case SIGSTOP:
-              if(DEBUG || 1) cprintf("trap.c: handleSignal:defaulr handler for SIGSTOP for PID:%d\n",p->pid);
+              if(DEBUG || 1) cprintf("PID %d: trap.c: handleSignal:defaulr handler for SIGSTOP\n",p->pid);
                 while(!(p->pending_Signals & 1U<<SIGCONT)){ //got sigcount
-                if(DEBUG) cprintf("trap.c: handleSignal:defaulr handler for SIG_DFL NO SIGCONT \n",signum);
+                if(DEBUG) cprintf("PID %d: trap.c: handleSignal:defaulr handler for SIG_DFL NO SIGCONT \n",p->pid,signum);
                   //give up cpu for another process
                   yield();  
                 }
-                if(DEBUG || 1) cprintf("trap.c: handleSignal:defaulr handler for SIG_DFL with SIGCONT for PID:%d\n",p->pid);
+                if(DEBUG || 1) cprintf("PID %d: trap.c: handleSignal:defaulr handler for SIG_DFL with SIGCONT \n",p->pid);
                 resetPendingSignal(p,SIGCONT); //reset the SIGCONT
                 resetPendingSignal(p,SIGSTOP); //reset the SIGSTOP
                 break;
               
               case SIGCONT:
-              if(DEBUG) cprintf("trap.c: handleSignal: default handler for SIG_CONT for PID:%d\n",p->pid); 
+              if(DEBUG) cprintf("PID %d: trap.c: handleSignal: default handler for SIG_CONT \n",p->pid); 
                 resetPendingSignal(p,SIGCONT); //SIGCONT on a non stopped process will have no affect
                 break;
               
               default: //default signal be
-                if(DEBUG) cprintf("trap.c: handleSignal: default handler for signal:%d\n",signum); 
+                if(DEBUG) cprintf("PID %d: trap.c: handleSignal: default handler for signal:%d\n",p->pid,signum); 
                 resetPendingSignal(p, (uint)signum);
                   p->killed = 1;
                   // Wake process from sleep if necessary.
@@ -218,7 +218,8 @@ handleSignal(struct trapframe *tf){
             p->signals_mask_backup =sigprocmask(p->siganl_handlers_mask[signum]);
             if(DEBUG || 1) cprintf("PID %d:trap.c: handleSignal: backupd signal_mask %d \n",p->pid,signum);
             //backing up user trapframe
-            *(p->backup_tf+ sizeof(p->backup_tf))=*(tf+sizeof(tf));
+            *(p->backup_tf)=*(tf);
+            // *(p->backup_tf+ sizeof(p->backup_tf))=*(tf+sizeof(tf));
             //pushing pointer for user esp and pushing the signum
             if(DEBUG || 1) cprintf("PID %d:trap.c: handleSignal: before pushing sgnum to esp signum = %d \n",p->pid,signum);
             tf->esp -=sizeof(int);
@@ -230,23 +231,23 @@ handleSignal(struct trapframe *tf){
             // *returnAddress=callSigret;
             tf->esp -= sizeof(uint);
             void* retAddress=callSigret;
-            memmove((void*)(tf->esp-4),&retAddress,4);
+            memmove((void*)(tf->esp-4),retAddress,4);
             
 
             //changing the instruction pointer (eip) to the signal handler 
             //so it will jump to the handler once exiting the trap
-            if(DEBUG || 1) cprintf("trap.c: handleSignal: about to change eip: signum = %d \n",signum);
-            if(DEBUG || 1) cprintf("trap.c: handleSignal: putting  p->signal_Handlers[signum] = 0x%x  in tf->eip \n",p->signal_Handlers[signum]);
+            if(DEBUG || 1) cprintf("PID %d: trap.c: handleSignal: about to change eip: signum = %d \n",p->pid,signum);
+            if(DEBUG || 1) cprintf("PID %d: trap.c: handleSignal: putting  p->signal_Handlers[signum] = 0x%x  in tf->eip \n",p->pid,p->signal_Handlers[signum]);
             tf->eip=(uint)p->signal_Handlers[signum]; 
             
             //exitig to exit trap()
-            if(DEBUG || 1) cprintf("trap.c: handleSignal: exit back to trap with tf->eip = 0x%x \n",tf->eip); 
+            if(DEBUG || 1) cprintf("PID %d: trap.c: handleSignal: exit back to trap with tf->eip = 0x%x \n",p->pid,tf->eip); 
             return;
         }
       }
     
     }
-    if(DEBUG) cprintf("trap.c: handleSignal: finish handling signum %d, moving to the next signal\n",signum); 
+    if(DEBUG) cprintf("PID %d: trap.c: handleSignal: finish handling signum %d, moving to the next signal\n",p->pid,signum); 
   }
-  if(p!=0 && DEBUG) cprintf("trap.c: handleSignal: exit back to trap\n"); 
+  if(p!=0 && DEBUG) cprintf("PID %d: trap.c: handleSignal: exit back to trap\n",p->pid); 
 }

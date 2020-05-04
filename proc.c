@@ -34,7 +34,7 @@ sigret(void){
   struct proc *p= myproc();
   if(DEBUG || 1) cprintf("PID %d: proc.c: sigret: entered function \n",p->pid);
   acquire(&ptable.lock);
-  *(p->tf +sizeof(struct trapframe))=*(p->backup_tf +sizeof(struct trapframe));
+  *(p->tf )=*(p->backup_tf);
   release(&ptable.lock);
   //trapret(); //TODO: do not need it beacuse goes thogh trap on way to kernal
 }
@@ -176,11 +176,11 @@ found:
     p->state = UNUSED;
     return 0;
   }
-  // // Allocate backup trapframe 
-  // if((p->backup_tf = (struct trapframe*)kalloc()) == 0){
-  //   p->state = UNUSED;
-  //   return 0;
-  // }
+  // Allocate backup trapframe 
+  if((p->backup_tf = (struct trapframe*)kalloc()) == 0){
+    p->state = UNUSED;
+    return 0;
+  }
   
   sp = p->kstack + KSTACKSIZE;
 
@@ -198,9 +198,9 @@ found:
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
 
-   // Leave room for backup trap frame. TODO: if doesnt work will use kalloc 
-  sp -= sizeof *p->backup_tf;
-  p->backup_tf = (struct trapframe*)sp;
+  //  // Leave room for backup trap frame. TODO: if doesnt work will use kalloc 
+  // sp -= sizeof *p->backup_tf;
+  // p->backup_tf = (struct trapframe*)sp;
 
   return p;
 }
