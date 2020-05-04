@@ -21,111 +21,9 @@ extern void trapret(void);
 static void wakeup1(void *chan);
 
 
-//resetting the pending signal bit
-//NOTICE: it locks the p.table!
-void
-resetPendingSignal(struct proc *p ,uint signum){
-  acquire(&ptable.lock);
-  p->pending_Signals ^=(1U<<signum);
-  release(&ptable.lock);
-}
 
-void callSigret(void){
-  sigret();
-}
-void endOfSigret(void){}
 
-void
-handleSignal(struct trapframe *tf){
-  struct proc *p= myproc();
-  if(p!=0 && DEBUG) cprintf("proc.c: handleSignal: entered function\n");
-  for(int signum=0; signum<32;signum++){
-    if(DEBUG) cprintf("proc.c: handleSignal:signals loop: checking signum %d \n",signum);
-    // checks if the signal is pending
-    if(p->pending_Signals &  (1U<<signum)){         
-      if(DEBUG) cprintf("proc.c: handleSignal:%d is a pending signal\n",signum);
-       // checks if the signal is blocked
-      if(p->signal_Mask & 1U<<signum){          
-        //no need to reset SIG_IGN 
-        if(DEBUG) cprintf("proc.c: handleSignal: %d is a pending and blocked signal\n",signum);
-      }
-      else {
-        //if signal is pendig and not blocked
-        if(DEBUG) cprintf("proc.c: handleSignal:%d is a pending signal\n",signum);
-        switch((int)p->signal_Handlers[signum]){ 
-          case SIG_IGN:
-            if(DEBUG) cprintf("proc.c: handleSignal: default handler for SIG_IGN\n"); 
-            resetPendingSignal(p,SIG_IGN); //if the handler is SIG_IGN, then the bit should be reset - forum
-            break;
-          case SIG_DFL: //defult signal handling, if signal is pendig, not blocked and without specifc handler
-            if(DEBUG) cprintf("proc.c: handleSignal:defaulr handler for SIG_DFL \n",signum);
-            switch(signum){
-              case SIGSTOP:
-              if(DEBUG) cprintf("proc.c: handleSignal:defaulr handler for SIGSTOP \n",signum);
-                while(!(p->pending_Signals & 1U<<SIGCONT)){ //got sigcount
-                if(DEBUG) cprintf("proc.c: handleSignal:defaulr handler for SIG_DFL NO SIGCONT \n",signum);
-                  acquire(&ptable.lock);
-                  p->state=RUNNABLE; 
-                  release(&ptable.lock);
-                  yield(); //give up cpu for another process 
-                }
-                if(DEBUG) cprintf("proc.c: handleSignal:defaulr handler for SIG_DFL with SIGCONT\n",signum);
-                resetPendingSignal(p,SIGCONT); //reset the SIGCONT
-                resetPendingSignal(p,SIGSTOP); //reset the SIGSTOP
-                break;
-              
-              case SIGCONT:
-              if(DEBUG) cprintf("proc.c: handleSignal: default handler for SIG_CONT\n"); 
-                resetPendingSignal(p,SIGCONT); //SIGCONT on a non stopped process will have no affect
-                break;
-              
-              default: //default signal be
-                if(DEBUG) cprintf("proc.c: handleSignal: default handler for signal:%d\n",signum); 
-                resetPendingSignal(p, (uint)signum);
-                acquire(&ptable.lock);
-                  p->killed = 1;
-                  // Wake process from sleep if necessary.
-                  if(p->state == SLEEPING)
-                    p->state = RUNNABLE;
-                release(&ptable.lock);
-              
-            }
-            
-            
-            break;
-          default:  //for every specific sig handler
-            if(DEBUG) cprintf("proc.c: handleSignal: user handler for signal:%d\n",signum); 
-            //reseting the signal pending bit
-            resetPendingSignal(p, (uint)signum);
-            //backing up current signals mask
-            p->signals_mask_backup =sigprocmask(p->siganl_handlers_mask[signum]);
-            //backing up user trapframe
-            *(p->backup_tf)=*tf;
-            //pushing pointer for user esp and pushing the signum
-            tf->esp -=sizeof(int);
-            int* handlerParameter=(int*)tf->esp;
-            *handlerParameter=signum;
-            //pushing the signal handler user function
-            tf->esp -= sizeof(uint);
-            // uint* returnAddress=(uint*)tf->esp;
-            // *returnAddress=callSigret;
-            memmove((void*)tf->esp,sigret,endOfSigret-callSigret);
 
-            //changing the instruction pointer (eip) to the signal handler 
-            //so it will jump to the handler once exiting the trap
-            tf->eip=p->siganl_handlers_mask[signum]; 
-            
-            //exitig to exit trap()
-            if(DEBUG) cprintf("proc.c: handleSignal: exit back to trap\n"); 
-            return;
-        }
-      }
-      
-    }
-    if(DEBUG) cprintf("proc.c: handleSignal: finish handling signum %d, moving to the next signal\n",signum); 
-  }
-  if(p!=0 && DEBUG) cprintf("proc.c: handleSignal: exit back to trap\n"); 
-}
 
 /**void sigret(void)
  * called implicitly when returning from user space after handling a signal. 
@@ -667,6 +565,19 @@ wakeup(void *chan)
   wakeup1(chan);
   release(&ptable.lock);
 }
+
+// int
+// getProcSignalsData(struct procSignalsData *output){
+//   struct proc* p=myproc();
+//   acquire(&ptable.lock);
+//   output->killed=&(p->killed);
+//   output->pending_Signals = p->pending_Signals;           //32bit array, stored as type uint
+//   output->signal_Mask = p->signal_Mask;               //32bit array, stored as type uint
+//   *(output->signal_Handlers) = *(p->signal_Handlers);      //Array of size 32, of type void*
+//   *(output->siganl_handlers_mask) = *(p->siganl_handlers_mask);  //Array of the signal mask of the signal handlers
+//   release(&ptable.lock);
+//   return 0;
+// }
 
 // Kill the process with the given pid.
 // Process won't exit until it returns

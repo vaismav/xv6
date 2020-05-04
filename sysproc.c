@@ -17,6 +17,7 @@ int
 sys_sigaction(void){
   int p_signum;
   if(argint (0,&p_signum)<0)
+
     return -1;
   const struct sigaction *p_act;
   if(argptr(1,(char **)&p_act,sizeof(struct sigaction))<0)
@@ -45,7 +46,7 @@ sys_sigret(void){
 uint
 sys_sigprocmask(void){
   int mask;
-  if(argint(0, &mask)< 0)
+  if(argint(0, &mask) < 0)
     return -1;
   return sigprocmask((uint)mask);
 }
@@ -96,6 +97,7 @@ sys_getProcSignalsData(void){
   *(output->signal_Handlers) = *(p->signal_Handlers);      //Array of size 32, of type void*
   *(output->siganl_handlers_mask) = *(p->siganl_handlers_mask);  //Array of the signal mask of the signal handlers
   return 0;
+  //return getProcSignalsData(output);
 }
 
 

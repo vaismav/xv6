@@ -21,6 +21,7 @@ alltraps:
   addl $4, %esp
 
   # Return falls through to trapret...
+  #call the handler? put it in trap?
 .globl trapret
 trapret:
   popal

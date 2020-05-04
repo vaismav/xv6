@@ -123,6 +123,7 @@ void            yield(void);
 int             sigaction(int, const struct sigaction*, struct sigaction*);
 uint            sigprocmask(uint);
 void            sigret(void);
+int             getProcSignalsData(struct procSignalsData*);
 
 
 // swtch.S

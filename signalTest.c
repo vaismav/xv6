@@ -71,22 +71,31 @@ int testStateOfNewProc(struct procSignalsData* parentProc, struct procSignalsDat
  * requested action: process will have pending kill signal
  */
  void handler(int signum){ //handler to change to 
-        printf(1,"Hello\n");
+        printf(1,"Hello$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n");
+        exit();
     }
 
+void handler1(int signum){ //handler to change to 
+    printf(1,"Hello#####################################################################################################\n");
+    kill(getpid(),SIGKILL);
+    exit();
+}
+
 int testUtilites(void){
+    int cpid1,cpid2;
+    uint dummy1=0,dummy2=0;
     printf(1,"TEST: uint sigprocmask(uint): \n");
     if (fork()==0){
        struct procSignalsData childProc;
        getProcSignalsData(&childProc);
        uint old_mask=childProc.signal_Mask;
        uint new_mask = 0;
-       new_mask |=1U<<3;
+       new_mask |= 1U<<3;
        if(sigprocmask(new_mask)!=old_mask){
             printf(1,"TEST: uint sigprocmask(uint) doesnt return old mask \n");
             exit();
        }
-       if(new_mask!=childProc.signal_Mask){
+       if(childProc.signal_Mask!=new_mask){
         printf(1,"TEST: uint sigprocmask(uint) doesnt update mask\n");
         exit();
        }
@@ -102,12 +111,12 @@ int testUtilites(void){
         getProcSignalsData(&childProc);
         //init sigaction act
         struct sigaction act;
-        memset (&act, 0, sizeof (act)); 
+        //memset (&act, 0, sizeof (act)); //TODO:
         act.sa_handler=&handler;
         act.sigmask=4; //sigcont is down
         //init sigaction oldact
         struct sigaction oldact;
-        memset (&oldact, 0, sizeof (oldact));
+        //memset (&oldact, 0, sizeof (oldact)); //TODO:
         oldact.sa_handler=&handler;
         oldact.sigmask=childProc.siganl_handlers_mask[SIGCONT]; //sigcont is down
 
@@ -158,18 +167,28 @@ int testUtilites(void){
 
 
     printf(1,"TEST: uint kill(int,int): \n"); 
-     if(fork()==0){
-         struct procSignalsData childProc;
-        getProcSignalsData(&childProc);
-         kill(0,SIGKILL);
-         if(!(childProc.killed)){
-             printf(1,"TEST: uint kill(int,int): didnt get the SIGKILL \n");
-             exit();
-         }
-        printf(1,"TEST: uint kill(int,int): PASSED \n");
-        exit();
+    
+    cpid1=fork();
+     if(cpid1==0){
+        while(1){
+            dummy1 = !dummy1;
+        }
+        
      } 
+     cpid2=fork();
+     if(cpid2==0){
+         printf(1,"TEST: uint kill(int,int): Sent SIGKILL to PID:%d \n",cpid1);
+        kill(cpid1,SIGKILL);
+        
+        while(1){
+            dummy2 = !dummy2;
+        }
+     }
+     int died=wait();
+     printf(1,"TEST: uint kill(int,int): PASSED cpid(from wait)=%d  \n",died);   
+     kill(cpid2,SIGKILL);
      wait();
+     printf(1,"FINISHED UTILITIES TESTS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! \n"); 
     return 0;
 }
 
@@ -216,10 +235,12 @@ int main(int argc, char* argv[]){
             check_exec();
         }
     }
-    struct procSignalsData parentProc;
-    struct procSignalsData childProc;
-    int i,cpid1,cpid2,finishedFirst,stopTheLoop;
+    // struct procSignalsData parentProc;
+    // struct procSignalsData childProc;
 
+    int cpid1,cpid2;
+    uint dummy1=3;
+/*
     getProcSignalsData(&parentProc);
 
     resetInitProc();
@@ -228,7 +249,7 @@ int main(int argc, char* argv[]){
         exit();  
     }
     else while(wait()!=-1){}
-        
+     
    
    printf(1,"TEST 1: create new procSignalsData from default procSignalsData settings\n");
     if(fork()==0){
@@ -265,14 +286,16 @@ int main(int argc, char* argv[]){
         printf(1,"TEST 2 PASSED\n");
         printf(1,"TEST 3: create new procSignalsData with custom signal mask and custom signal handlers\n");
         //call exec "siganlTest --exec"
-        char* arg ="exec";
-        exec("signalTest",&arg);
-     
+        //char* arg ="exec";
+        //exec("signalTest",&arg);
+        exit();
     }
      wait();
-
-
     resetInitProc();
+*/
+/*
+    int i,finishedFirst,stopTheLoop;
+    
     printf(1,"TEST 4: check SIGSTOP and SIGCONT behavor\n");
     stopTheLoop=0;
     for(i=0; i<10 && !stopTheLoop;i++){
@@ -334,8 +357,39 @@ int main(int argc, char* argv[]){
         printf(1,"TEST 4: PASSED\n");
     }
     
-    
-    //TEST 3: handler & sigret
-
+    */
+    //TEST 5: handler & sigret
+    printf(1,"TEST 5: check user handler behavor\n");
+    cpid1=fork();
+    if(cpid1==0){
+        //canghe handler of 5
+        struct sigaction act;
+        act.sa_handler=&handler1;
+        act.sigmask=0;
+        struct procSignalsData this;
+        getProcSignalsData(&this);
+        printf(1,"TEST 5: PID:%d sigmask =  %x \n",this.signal_Mask);
+        printf(1,"TEST 5: act->sigmask =  %x .  \n",act.sigmask);
+        printf(1,"TEST 5: act.sa_handler =  %x .  \n",act.sa_handler);
+        
+        sigaction(5,&act,null);
+        getProcSignalsData(&this);
+        printf(1,"TEST 5:post sigaction: PID:%d sigmask =  %x \n",this.signal_Mask);
+        cpid1=getpid();
+        cpid2 = fork();
+        if(cpid2==0){
+            printf(1,"TEST 5: sending signal '5' from pid: %d TO pid: %d \n",getpid(),cpid1);
+            while(kill(cpid1,5)!=0){
+               printf(1,"TEST 5: failed to send kill(cpid1,5) \n",getpid(),cpid1); 
+            }
+            
+            exit();
+        }
+        while(1){
+            dummy1 = !dummy1;
+        }
+    }
+    wait();
+    wait();
     return 0;
 }
