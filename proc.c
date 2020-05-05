@@ -35,6 +35,7 @@ sigret(void){
   if(DEBUG || 1) cprintf("PID %d: proc.c: sigret: entered function \n",p->pid);
   acquire(&ptable.lock);
   *(p->tf )=*(p->backup_tf);
+  p->tf->eax=24;
   release(&ptable.lock);
   //trapret(); //TODO: do not need it beacuse goes thogh trap on way to kernal
 }

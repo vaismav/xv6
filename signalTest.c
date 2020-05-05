@@ -77,6 +77,11 @@ int testStateOfNewProc(struct procSignalsData* parentProc, struct procSignalsDat
 
 void handler1(int signum){ //handler to change to 
     printf(1,"Hello#####################################################################################################\n");
+    int* ptr;
+    ptr=&signum;
+    printf(1,"handler1: signum data: address=0x%x, value=0x%x\n",ptr,*ptr);
+    ptr-=1;
+    printf(1,"handler1: return address data: address=0x%x, value=0x%x\n",ptr,*ptr);
      test5_flag =0;
 }
 
@@ -386,8 +391,9 @@ int main(int argc, char* argv[]){
             
             kill(getpid(),SIGKILL);
         }
-        while(test5_flag ){
+        while(test5_flag==1 ){
             dummy1 = !dummy1;
+            
         }
         printf(1,"PID %d: TEST 5: got out of while loop after reciveing signum 5 and using user handler! \n",getpid());
         printf(1,"PID %d: TEST 5: PASSED \n",getpid());
