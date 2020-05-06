@@ -3,6 +3,7 @@ typedef unsigned short ushort;
 typedef unsigned char  uchar;
 typedef uint pde_t;
 #define null 0 
+#define DEBUG 0
 
 #define SIG_DFL 0  //default signal handeling
 #define SIG_IGN 1  //ignor signal
@@ -26,4 +27,3 @@ struct procSignalsData{
 
 
 
-#define DEBUG 0

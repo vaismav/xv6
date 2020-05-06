@@ -76,13 +76,15 @@ int testStateOfNewProc(struct procSignalsData* parentProc, struct procSignalsDat
     }
 
 void handler1(int signum){ //handler to change to 
-    printf(1,"Hello#####################################################################################################\n");
-    int* ptr;
-    ptr=&signum;
-    printf(1,"handler1: signum data: address=0x%x, value=0x%x\n",ptr,*ptr);
-    ptr-=1;
-    printf(1,"handler1: return address data: address=0x%x, value=0x%x\n",ptr,*ptr);
-     test5_flag =0;
+    test5_flag =0;
+    printf(1,"\nHello#####################################################################################################\n");
+    if(DEBUG && 1){
+        int* ptr;
+        ptr=&signum;
+        printf(1,"handler1: signum data: address=0x%x, value=0x%x\n",ptr,*ptr);
+        ptr-=1;
+        printf(1,"handler1: return address data: address=0x%x, value=0x%x\n",ptr,*ptr);
+    }    
 }
 
 int testUtilites(void){
@@ -243,7 +245,7 @@ int main(int argc, char* argv[]){
     // struct procSignalsData childProc;
 
     int cpid1,cpid2;
-    uint dummy1=3;
+    // uint dummy1=3;
 /*
     getProcSignalsData(&parentProc);
 
@@ -363,7 +365,7 @@ int main(int argc, char* argv[]){
     
     */
 
-
+    test5_flag=1;
     //TEST 5: handler & sigret
     printf(1,"TEST 5: check user handler behavor\n");
     cpid1=fork();
@@ -371,7 +373,7 @@ int main(int argc, char* argv[]){
         //canghe handler of 5
         struct sigaction act;
         act.sa_handler=&handler1;
-        act.sigmask=0;
+        act.sigmask=0x0;
         struct procSignalsData this;
         getProcSignalsData(&this);
         printf(1,"TEST 5: PID:%d sigmask =  %x \n",this.signal_Mask);
@@ -384,24 +386,34 @@ int main(int argc, char* argv[]){
         cpid1=getpid();
         cpid2 = fork();
         if(cpid2==0){
-            printf(1,"TEST 5: sending signal '5' from pid: %d TO pid: %d \n",getpid(),cpid1);
-            while(kill(cpid1,5)!=0){
-               printf(1,"TEST 5: failed to send kill(cpid1,5) \n",getpid(),cpid1); 
+            cpid2=getpid();
+            printf(1,"PID %d: TEST 5: sending signal '5' from pid: %d TO pid: %d \n",cpid2,cpid2,cpid1);
+            if(kill(cpid1,5)!=0){
+               printf(1,"PID %d: TEST 5: failed to send kill(%d,5) \n",cpid2,cpid1); 
+            }
+            else{
+                  printf(1,"PID %d: TEST 5: SUCCESSED to send kill(%d,5) \n",cpid2,cpid1);   
             }
             
-            kill(getpid(),SIGKILL);
-        }
-        while(test5_flag==1 ){
-            dummy1 = !dummy1;
             
+            kill(cpid2,SIGKILL);
+            // exit();
         }
+        
+        while(test5_flag==1){
+            asm("NOP");
+        }
+        
         printf(1,"PID %d: TEST 5: got out of while loop after reciveing signum 5 and using user handler! \n",getpid());
-        printf(1,"PID %d: TEST 5: PASSED \n",getpid());
-        kill(getpid(),SIGKILL);
+        printf(1,"PID %d: TEST 5: PASSED \n",cpid1);
+        wait();
+        kill(cpid1,SIGKILL);
+        // exit();
     }
+    
     wait();
     wait();
-    printf(1,"PID %d: TEST 5: FINISHED \n",getpid());
+    printf(1,"PID %d: ALL TESTS ARE FINISHED \n",getpid());
     exit();
     return 0;
 }

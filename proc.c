@@ -32,12 +32,9 @@ static void wakeup1(void *chan);
 void
 sigret(void){
   struct proc *p= myproc();
-  if(DEBUG || 1) cprintf("PID %d: proc.c: sigret: entered function \n",p->pid);
-  acquire(&ptable.lock);
-  *(p->tf )=*(p->backup_tf);
-  p->tf->eax=24;
-  release(&ptable.lock);
-  //trapret(); //TODO: do not need it beacuse goes thogh trap on way to kernal
+  if(DEBUG && 1) cprintf("PID %d: proc.c: sigret: entered function \n",p->pid);
+  memmove(p->tf,p->backup_tf,sizeof(struct trapframe));
+  p->signal_Mask=p->signals_mask_backup;
 }
 
 
@@ -171,17 +168,18 @@ found:
   p->pending_Signals= 0;
   p->signal_Mask=0;
   
-  
-  // Allocate kernel stack.
-  if((p->kstack = kalloc()) == 0){
-    p->state = UNUSED;
-    return 0;
-  }
   // Allocate backup trapframe 
   if((p->backup_tf = (struct trapframe*)kalloc()) == 0){
     p->state = UNUSED;
     return 0;
   }
+
+  // Allocate kernel stack.
+  if((p->kstack = kalloc()) == 0){
+    p->state = UNUSED;
+    return 0;
+  }
+  
   
   sp = p->kstack + KSTACKSIZE;
 
@@ -198,10 +196,6 @@ found:
   p->context = (struct context*)sp;
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
-
-  //  // Leave room for backup trap frame. TODO: if doesnt work will use kalloc 
-  // sp -= sizeof *p->backup_tf;
-  // p->backup_tf = (struct trapframe*)sp;
 
   return p;
 }
@@ -593,7 +587,7 @@ wakeup(void *chan)
 int
 kill(int pid, int signum)
 {
-  if (DEBUG) cprintf("proc.c: kill:  signum= %d sent to pid = %d, from proc:%d\n",signum,pid,myproc()->pid);
+  if (DEBUG && 0) cprintf("proc.c: kill:  signum= %d sent to pid = %d, from proc:%d\n",signum,pid,myproc()->pid);
   struct proc *p;
   if(signum < 0 ||  31 < signum){ 
     cprintf("Error: proc.c: kill: ilegal signum value was sent to procces %d\n",pid);
