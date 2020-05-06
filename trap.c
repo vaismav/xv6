@@ -204,9 +204,8 @@ handleSignal(struct trapframe *tf){
                 return;
               
             }
-            
-            
             break;
+          
           default:  //for every specific sig handler
           
             if(DEBUG && 1) cprintf("\nPID %d: trap.c: handleSignal: handling user handler for signal:%d \n",p->pid,signum); 
@@ -215,16 +214,16 @@ handleSignal(struct trapframe *tf){
             
             //backing up current signals mask
             p->signals_mask_backup =p->signal_Mask;
+            
             //changing proc->signal_Mask to the handler mask
             p->signal_Mask=p->siganl_handlers_mask[signum];
-
             if(DEBUG && 1) cprintf("\nPID %d:trap.c: handleSignal: p->signal_Mask= 0x%x \n",p->pid,p->signal_Mask);
+            
             //backing up user trapframe
             memmove(p->backup_tf,tf,sizeof(struct trapframe));
 
-            //pushing the callSugret function code to the stack
+            //pushing the callSigret function code to the stack
             int codesize=endOfCallSigret-callSigret;
-
             if(DEBUG && 1) cprintf("\n1 codesize=%d, sigretCallEnd= 0x%x, sigretCall= 0x%x , tf->esp= 0x%x\n",codesize,endOfCallSigret,callSigret,tf->esp);
             tf->esp -=codesize;
             if(DEBUG && 1) cprintf("\n2\n");
@@ -233,19 +232,14 @@ handleSignal(struct trapframe *tf){
             uint retAddress=tf->esp;
             if(DEBUG && 1) cprintf("\n4 retAddress=0x%x\n",retAddress);
 
-
-            
             //pushing pointer for user esp and pushing the signum
             if(DEBUG && 1) cprintf("\nPID %d:trap.c: handleSignal: before pushing sgnum to esp signum = %d \n",p->pid,signum);
             tf->esp -=sizeof(int);
             memmove((void*)(tf->esp),&signum,sizeof(uint));
             if(DEBUG && 1) cprintf("\nPID %d: trap.c: handleSignal: after pushing sgnum to esp signum = %d \n",p->pid,signum);
-            //pushing the signal handler user function
             
-            // uint* returnAddress=(uint*)tf->esp;
-            // *returnAddress=callSigret;
+            //pushing the signal handler user function
             tf->esp -= sizeof(uint);
-            //retAddress=callSigret;
             memmove((void*)(tf->esp),&retAddress,4);
             
 

@@ -121,6 +121,7 @@ static inline uint
 xchg(volatile uint *addr, uint newval)
 {
   uint result;
+  
 
   // The + in "+m" denotes a read-modify-write operand.
   asm volatile("lock; xchgl %0, %1" :
@@ -142,6 +143,24 @@ static inline void
 lcr3(uint val)
 {
   asm volatile("movl %0,%%cr3" : : "r" (val));
+}
+
+//Task 3- implementing CAS
+static inline int
+cas(volatile void *addr, int expected, int newval){
+ unsigned char ret;
+  uint* uaddr=(uint*)addr; //you are welcome - not working
+//volatile uint *addr = (volatile uint *)(addr); //TODO: check
+      asm volatile (
+            "  lock;  cmpxchgl %[newval], %[mem]\n"
+            "  sete %0\n"
+            : "=q" (ret), [mem] "+m" (*uaddr), "+a" (expected)
+            : [newval]"r" (newval)
+            : "memory");    // barrier for compiler reordering around this
+//newval<---newval
+//eax<---expected
+//mem<---addr
+    return ret;   // ZF result, 1 on success else 0
 }
 
 //PAGEBREAK: 36

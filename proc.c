@@ -127,11 +127,17 @@ myproc(void) {
 int 
 allocpid(void) 
 {
-  int pid;
-  acquire(&ptable.lock);
-  pid = nextpid++;
-  release(&ptable.lock);
-  return pid;
+  // int pid;
+  // acquire(&ptable.lock);
+  // pid = nextpid++;
+  // release(&ptable.lock);
+
+  int oldpid;
+  do{
+     oldpid=nextpid;
+   }
+  while (!cas(&nextpid, oldpid, oldpid+1));
+  return oldpid+1;
 }
 
 //PAGEBREAK: 32
