@@ -97,11 +97,13 @@ int testUtilites(void){
        uint old_mask=childProc.signal_Mask;
        uint new_mask = 0;
        new_mask |= 1U<<3;
-       if(sigprocmask(new_mask)!=old_mask){
-            printf(1,"TEST: uint sigprocmask(uint) doesnt return old mask \n");
+       old_mask=sigprocmask(new_mask);
+       if(sigprocmask(old_mask) != new_mask){
+           printf(1,"TEST: uint sigprocmask(uint) doesnt update mask\n");
             exit();
        }
-       if(childProc.signal_Mask!=new_mask){
+       
+       if(sigprocmask(new_mask)!=old_mask){
         printf(1,"TEST: uint sigprocmask(uint) doesnt update mask\n");
         exit();
        }
@@ -112,60 +114,44 @@ int testUtilites(void){
 
     printf(1,"TEST: uint sigaction(): \n");
     if(fork()==0){
-   
+        
         struct procSignalsData childProc;
         getProcSignalsData(&childProc);
         //init sigaction act
-        struct sigaction act;
-        //memset (&act, 0, sizeof (act)); //TODO:
-        act.sa_handler=&handler;
-        act.sigmask=4; //sigcont is down
+        struct sigaction act1;
+        act1.sa_handler=&handler;
+        act1.sigmask=4; //sigcont is down
         //init sigaction oldact
+        struct sigaction original_act;
         struct sigaction oldact;
-        //memset (&oldact, 0, sizeof (oldact)); //TODO:
-        oldact.sa_handler=&handler;
-        oldact.sigmask=childProc.siganl_handlers_mask[SIGCONT]; //sigcont is down
-
         //TEST: try to chage SIGKILL SIGSTOP, should fail
-        if((sigaction(SIGKILL,&act,null)==0)||(sigaction(SIGSTOP,&act,null)==0)){
+        if((sigaction(SIGKILL,&act1,null)==0)||(sigaction(SIGSTOP,&act1,null)==0)){
             printf(1,"TEST: uint sigaction(): changes SIGKILL SIGSTOP\n");
             exit(); 
         }
-        //change childProc mask in SIGCONT
-        uint new_mask = 0;
-        new_mask |=1U<<19; //sigcont is up
-        sigprocmask(new_mask);
-
+        
+        //test old act
+        if(sigaction(5,&act1,&original_act) !=0){
+            printf(1,"TEST: uint sigaction(): faild to execute sigaction syscall\n");
+                exit();
+        }
+        if(sigaction(5,&original_act,&oldact) !=0){
+            printf(1,"TEST: uint sigaction(): faild to execute sigaction syscall\n");
+                exit();
+        }
+        if(oldact.sa_handler != act1.sa_handler){
+            printf(1,"TEST: uint sigaction(): faild to set proc sa_handler\n");
+                exit();
+        }
+        if(oldact.sigmask != act1.sigmask){
+            printf(1,"TEST: uint sigaction(): faild to set proc sa_handler\n");
+                exit();
+        }
         //TEST: oldact null
-        if(sigaction(SIGCONT,&act,null)!=0){
+        if(sigaction(5,&act1,null)!=0){
             printf(1,"TEST: uint sigaction(): faild to set process fields from act\n");
                 exit();
         }
-        if(childProc.signal_Handlers[SIGCONT]!=act.sa_handler){ //should be handler
-              printf(1,"TEST: uint sigaction(): not changing process signal handlers\n");
-              exit();
-        }
-        if(childProc.siganl_handlers_mask[SIGCONT]!= act.sigmask){ //sigcont should be down
-            printf(1,"TEST: uint sigaction(): not changing process signal handlers mask\n");
-            exit();
-        }
-        //change childProc mask in SIGCONT 
-        uint new_mask1 = 0;
-        new_mask1 |=1U<<19; //sigcont is up
-        sigprocmask(new_mask1);
-        //TEST: oldact not null
-        if(sigaction(SIGCONT,&act,&oldact)!=0){
-            printf(1,"TEST: uint sigaction(): faild to set oldact fields\n");
-            exit();
-        }
-        if(oldact.sa_handler != childProc.signal_Handlers[SIGCONT]){ //should as child's
-            printf(1,"TEST: uint sigaction(): not changing oldact signal handlers\n");
-            exit();
-        }
-         if(oldact.sigmask!=childProc.siganl_handlers_mask[SIGCONT]){ //sigcont should be down
-            printf(1,"TEST: uint sigaction(): not changing oldact sigmask\n");
-            exit();
-         }
          printf(1,"TEST: uint sigaction(): PASSED \n");
          exit();
     } 
@@ -229,7 +215,74 @@ void check_exec(){
    }
 }
 
-
+void test4(){
+    int i,finishedFirst,stopTheLoop,cpid1,cpid2;
+    int passedRuns=0;
+    int numOfRuns=5;
+    
+    printf(1,"TEST 4: check SIGSTOP and SIGCONT behavor\n");
+    stopTheLoop=0;
+    for(i=1; i <= numOfRuns && !stopTheLoop;i++){
+        cpid1=fork();
+        if(cpid1==0){
+            fibo(22);
+            exit();
+        }
+        //PROC2 will stop PROC1
+        if(kill(cpid1,SIGSTOP)!=0){
+            //main porcess kill cpid1 and start new test
+            printf(1,"TEST 4: run N0 %d: couldnt sent SIGSTOP to cpid1\n",i);
+            //start next step of the for loop
+            continue; 
+        }
+        else{
+            //SIGSTOP sent succussfuly
+            //strat running of PROC2
+            cpid2=fork();
+            if(cpid2==0){
+                fibo(28);
+                if(kill(cpid1,SIGCONT)!=0){
+                    //failed to send SIGCONT
+                    printf(1,"TEST 4: couldnt sent SIGCONT to cpid1. Trying again\n"); 
+                }
+                
+                exit();                
+            }
+        }
+        //main process checks who finished first 
+        finishedFirst=wait();
+        wait();
+        //check if one of the 2 fork action has failed
+        if(cpid1 == -1 || cpid2 ==-1){
+            printf(1,"TEST 4: wasnt able to do fork()\n"); 
+            i--;
+        }
+        //check if cpid2 finished before cpid1
+        else if(finishedFirst==cpid2){
+            printf(1,"TEST 4: run N0 %d PASSED (cpid1 finished after cpid2)\n",i);
+            passedRuns++;
+        }
+        //FAILD: cpid1 finished before cpid2 (means cpid2 didnt stop cpid1)
+        else if(finishedFirst==cpid1){
+            
+            printf(1,"TEST 4: cpid1 finished before cpid2\n"); 
+            // stopTheLoop=1;
+        }
+        //unpredictable pid 
+        else{ 
+            printf(1,"TEST 4: PANIC: something accured and PID of finishedFirst=%d (cpid1=%d, cpid2=%d)\n",finishedFirst,cpid1,cpid2);
+        }  
+    }
+    //if error accured in the test
+    if(passedRuns < numOfRuns/2){
+        printf(1,"TEST 4: FAILED\n");
+        exit();
+    }
+    //if passed TEST 4
+    else{
+        printf(1,"TEST 4: PASSED %d/%d\n",passedRuns,numOfRuns);
+    }
+}
 
 
 int main(int argc, char* argv[]){
@@ -241,12 +294,12 @@ int main(int argc, char* argv[]){
             check_exec();
         }
     }
-    // struct procSignalsData parentProc;
-    // struct procSignalsData childProc;
+    struct procSignalsData parentProc;
+    struct procSignalsData childProc;
 
     int cpid1,cpid2;
     // uint dummy1=3;
-/*
+
     getProcSignalsData(&parentProc);
 
     resetInitProc();
@@ -297,73 +350,12 @@ int main(int argc, char* argv[]){
         exit();
     }
      wait();
+    
+    
     resetInitProc();
-*/
-/*
-    int i,finishedFirst,stopTheLoop;
+    test4();
     
-    printf(1,"TEST 4: check SIGSTOP and SIGCONT behavor\n");
-    stopTheLoop=0;
-    for(i=0; i<10 && !stopTheLoop;i++){
-        cpid1=fork();
-        if(cpid1==0){
-            fibo(25);
-            exit();
-        }
-        //PROC2 will stop PROC1
-        if(kill(cpid1,SIGSTOP)!=0){
-            //main porcess kill cpid1 and start new test
-            printf(1,"TEST 4: run N0 %d: couldnt sent SIGSTOP to cpid1\n",i);
-            //start next step of the for loop
-            continue; 
-        }
-        else{
-            //SIGSTOP sent succussfuly
-            //strat running of PROC2
-            cpid2=fork();
-            if(cpid2==0){
-                fibo(37);
-                if(kill(cpid1,SIGCONT)!=0){
-                    //failed to send SIGCONT
-                    printf(1,"TEST 4: couldnt sent SIGCONT to cpid1\n");
-                }
-                exit();                
-            }
-        }
-        //main process checks who finished first 
-        finishedFirst=wait();
-        wait();
-        //check if one of the 2 fork action has failed
-        if(cpid1 == -1 || cpid2 ==-1){
-            stopTheLoop=1;
-            printf(1,"TEST 4: wasnt able to do fork()\n"); 
-        }
-        //check if cpid2 finished before cpid1
-        else if(finishedFirst==cpid2){
-            printf(1,"TEST 4: run N0 %d PASSED (cpid1 finished after cpid2\n",i);
-        }
-        //FAILD: cpid1 finished before cpid2 (means cpid2 didnt stop cpid1)
-        else if(finishedFirst==cpid1){
-            
-            printf(1,"TEST 4: cpid1 finished before cpid2\n"); 
-            stopTheLoop=1;
-        }
-        //unpredictable pid 
-        else{ 
-            printf(1,"TEST 4: PANIC: something accured and PID of finishedFirst=%d (cpid1=%d, cpid2=%d)\n",finishedFirst,cpid1,cpid2);
-        }  
-    }
-    //if error accured in the test
-    if(stopTheLoop){
-        printf(1,"TEST 4: FAILED\n");
-        exit();
-    }
-    //if passed TEST 4
-    else{
-        printf(1,"TEST 4: PASSED\n");
-    }
     
-    */
 
     test5_flag=1;
     //TEST 5: handler & sigret
@@ -376,9 +368,11 @@ int main(int argc, char* argv[]){
         act.sigmask=0x0;
         struct procSignalsData this;
         getProcSignalsData(&this);
-        printf(1,"TEST 5: PID:%d sigmask =  %x \n",this.signal_Mask);
-        printf(1,"TEST 5: act->sigmask =  %x .  \n",act.sigmask);
-        printf(1,"TEST 5: act.sa_handler =  %x .  \n",act.sa_handler);
+        if(DEBUG && 1){
+            printf(1,"TEST 5: PID:%d sigmask =  %x \n",this.signal_Mask);
+            printf(1,"TEST 5: act->sigmask =  %x .  \n",act.sigmask);
+            printf(1,"TEST 5: act.sa_handler =  %x .  \n",act.sa_handler);
+        }
         
         sigaction(5,&act,null);
         getProcSignalsData(&this);
