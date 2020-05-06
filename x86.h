@@ -148,9 +148,8 @@ lcr3(uint val)
 //Task 3- implementing CAS
 static inline int
 cas(volatile void *addr, int expected, int newval){
- unsigned char ret;
-  uint* uaddr=(uint*)addr; //you are welcome - not working
-//volatile uint *addr = (volatile uint *)(addr); //TODO: check
+  unsigned char ret;
+  uint* uaddr=(uint*)addr; 
       asm volatile (
             "  lock;  cmpxchgl %[newval], %[mem]\n"
             "  sete %0\n"

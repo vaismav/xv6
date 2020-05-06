@@ -150,19 +150,24 @@ allocproc(void)
 {
   struct proc *p;
   char *sp;
+  int old_state;
 
-  acquire(&ptable.lock);
+  //acquire(&ptable.lock);
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if(p->state == UNUSED)
       goto found;
 
-  release(&ptable.lock);
+  //release(&ptable.lock);
   return 0;
 
 found:
+  //add CAS use
+  do{
+    old_state=(int)p->state;
+  }while(!cas(&p->state,old_state,EMBRYO));
   p->state = EMBRYO;
-  release(&ptable.lock);
+  //release(&ptable.lock);
 
   p->pid = allocpid();
   //Assignment2:updating signals fields of struct proc
