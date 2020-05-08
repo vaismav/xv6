@@ -37,9 +37,7 @@ struct context {
 };
 
 enum procstate {UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE};
-// //TODO: need? 
-// #define Min -5
-// enum neg_procsatate {neg_ZOMBIE=Min, neg_RINNUNG, neg_RUNNABLE, neg_SLEEPING, neg_EMBRYO, neg_UNUSED};
+
 
 
 // Per-process state
@@ -48,7 +46,6 @@ struct proc {
   pde_t* pgdir;                // Page table
   char *kstack;                // Bottom of kernel stack for this process
   enum procstate state;        // Process state
-  //enum neg_procsatate neg_state         //Process negativ state //TODO: need?
   int pid;                     // Process ID
   struct proc *parent;         // Parent process
   struct trapframe *tf;        // Trap frame for current syscall
@@ -59,6 +56,7 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
                                //OURs
+  int is_occupied ;            //used by CAS
   uint pending_Signals;        //32bit array, stored as type uint
   uint signal_Mask;            //32bit array, stored as type uint
   void* signal_Handlers[32];   //Array of size 32, of type void*

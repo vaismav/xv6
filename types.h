@@ -5,6 +5,9 @@ typedef uint pde_t;
 #define null 0 
 #define DEBUG 0
 
+#define OCCUPIED 1
+#define UNOCCUPIED 0
+
 #define SIG_DFL 0  //default signal handeling
 #define SIG_IGN 1  //ignor signal
 #define SIGKILL 9
