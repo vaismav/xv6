@@ -198,7 +198,7 @@ handleSignal(struct trapframe *tf){
                 if(DEBUG && 0) cprintf("\nPID %d: trap.c: handleSignal: default handler for signal:%d\n",p->pid,signum); 
                 resetPendingSignal(p, (uint)signum);
                 p->killed = 1;
-                // Wake process from sleep if necessary.
+                // Wake process from sleep if necessary. TODO: need to ass CAS usage?
                 if(p->state == SLEEPING)
                   p->state = RUNNABLE;
                 return;

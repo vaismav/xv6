@@ -45,12 +45,25 @@ sigret(void){
  */
 uint
 sigprocmask(uint newMask){
+  // struct proc *p= myproc();
+  // uint oldMask;
+  // acquire(&ptable.lock);
+  // oldMask=p->signal_Mask;
+  // p->signal_Mask = newMask;
+  // release(&ptable.lock);
+  // return oldMask;
+
+  //With CAS//TODO: show Avishay
   struct proc *p= myproc();
   uint oldMask;
-  acquire(&ptable.lock);
-  oldMask=p->signal_Mask;
-  p->signal_Mask = newMask;
-  release(&ptable.lock);
+  int changed_mask=1;
+  do{
+    oldMask=p->signal_Mask;
+    if(p->signal_Mask!=newMask){
+      changed_mask=0;
+    }
+  }while(changed_mask==0 && !cas(&p->signal_Mask,oldMask,newMask));
+    p->signal_Mask = newMask;
   return oldMask;
 }
 
@@ -69,15 +82,40 @@ sigaction(int signum, const struct sigaction *act, struct sigaction *oldact){
     if(signum==SIGKILL || signum==SIGSTOP)
       return -1;
     else{
-      acquire(&ptable.lock);
-      if(oldact!=0){
-      oldact->sa_handler = p->signal_Handlers[signum];
-      oldact->sigmask=p->siganl_handlers_mask[signum];
-      }
+      //With CAS TODO: show Avishay - Im not so sure
+      int changed_signal_Handlers=1;
+      int changed_signal_handlers_mask=1;
+      uint old_sig_handl_mask;
+      void * old_sig_handl;
+    
+      do{
+        if(oldact!=0){
+          if(p->signal_Handlers[signum]!=act->sa_handler){
+            oldact->sa_handler = p->signal_Handlers[signum];
+            changed_signal_Handlers=0;
+          }
+          if(p->siganl_handlers_mask[signum]!=act->sigmask){
+            oldact->sigmask=p->siganl_handlers_mask[signum];
+            changed_signal_handlers_mask=0;
+          }
+          old_sig_handl_mask=p->siganl_handlers_mask[signum];
+          old_sig_handl=p->signal_Handlers[signum];
+        }
+      }while(!changed_signal_Handlers && !changed_signal_handlers_mask &&
+      !cas(&p->siganl_handlers_mask[signum],old_sig_handl_mask,act->sigmask) &&
+      !cas(&p->signal_Handlers[signum],(int)&old_sig_handl,(int)&act->sa_handler));
+
       p->signal_Handlers[signum]=act->sa_handler;
       p->siganl_handlers_mask[signum] = act->sigmask;
-      release(&ptable.lock);
-    
+
+      //acquire(&ptable.lock);
+      // if(oldact!=0){
+      // oldact->sa_handler = p->signal_Handlers[signum];
+      // oldact->sigmask=p->siganl_handlers_mask[signum];
+      // }
+      // p->signal_Handlers[signum]=act->sa_handler;
+      // p->siganl_handlers_mask[signum] = act->sigmask;
+      //release(&ptable.lock);
       return 0;
     }
 }
@@ -132,6 +170,7 @@ allocpid(void)
   // pid = nextpid++;
   // release(&ptable.lock);
 
+//With CAS
   int oldpid;
   do{
      oldpid=nextpid;
@@ -151,21 +190,27 @@ allocproc(void)
   struct proc *p;
   char *sp;
   int old_state;
+  int still_unused=1;
 
   //acquire(&ptable.lock);
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == UNUSED)
-      goto found;
+    if(p->state == UNUSED){
+      //With CAS
+      do{
+        old_state=UNUSED;
+        if(p->state!=UNUSED)
+          still_unused=0;
+      }while(still_unused && !cas(&p->state,old_state,EMBRYO));
+      
+      if(still_unused)
+        goto found;
+    }
 
   //release(&ptable.lock);
   return 0;
 
 found:
-  //add CAS use
-  do{
-    old_state=(int)p->state;
-  }while(!cas(&p->state,old_state,EMBRYO));
   p->state = EMBRYO;
   //release(&ptable.lock);
 
@@ -221,6 +266,8 @@ userinit(void)
 {
   struct proc *p;
   extern char _binary_initcode_start[], _binary_initcode_size[];
+  int old_state;
+  int still_EMBRYO=1;
 
   p = allocproc();
   
@@ -245,11 +292,18 @@ userinit(void)
   // run this process. the acquire forces the above
   // writes to be visible, and the lock is also needed
   // because the assignment might not be atomic.
-  acquire(&ptable.lock);
 
-  p->state = RUNNABLE;
+  // acquire(&ptable.lock);
+  // p->state = RUNNABLE;
+  // release(&ptable.lock);
 
-  release(&ptable.lock);
+  //With CAS TODO: show Avishay
+  do{
+    old_state=p->state;
+    if(p->state!=EMBRYO)
+      still_EMBRYO=0;
+  }while(still_EMBRYO && !cas(&p->state,old_state,RUNNABLE));
+  p->state=RUNNABLE;
 }
 
 // Grow current process's memory by n bytes.
@@ -282,6 +336,8 @@ fork(void)
   int i, pid;
   struct proc *np;
   struct proc *curproc = myproc();
+  int old_state;
+  int not_RUNNABLE=1;
 
   // Allocate process.
   if((np = allocproc()) == 0){
@@ -318,11 +374,17 @@ fork(void)
 
   pid = np->pid;
 
-  acquire(&ptable.lock);
+  // acquire(&ptable.lock);
+  // np->state = RUNNABLE; 
+  // release(&ptable.lock);
 
-  np->state = RUNNABLE;
-
-  release(&ptable.lock);
+  //With CAS TODO: show Avishay
+  do{
+    old_state=np->state;
+    if(np->state==RUNNABLE)
+      not_RUNNABLE=0;
+  }while(not_RUNNABLE && !cas(&np->state,old_state,RUNNABLE));
+  np->state=RUNNABLE;
 
   return pid;
 }
@@ -353,7 +415,7 @@ exit(void)
   end_op();
   curproc->cwd = 0;
 
-  acquire(&ptable.lock);
+  acquire(&ptable.lock); //TODO: consult Avishay
 
   // Parent might be sleeping in wait().
   wakeup1(curproc->parent);
@@ -382,7 +444,7 @@ wait(void)
   int havekids, pid;
   struct proc *curproc = myproc();
   
-  acquire(&ptable.lock);
+  acquire(&ptable.lock); //TODO: consult with Avishay
   for(;;){
     // Scan through table looking for exited children.
     havekids = 0;
@@ -437,7 +499,7 @@ scheduler(void)
     sti();
 
     // Loop over process table looking for process to run.
-    acquire(&ptable.lock);
+    acquire(&ptable.lock); //TODO: consult with Avishay
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state != RUNNABLE)
         continue;
@@ -491,6 +553,18 @@ sched(void)
 void
 yield(void)
 {
+  //With CAS TODO: show Avishay
+  // int old_state;
+  // int not_RUNNABLE=1;
+
+  // do{
+  //   old_state=myproc()->state;
+  //   if(myproc()->state==RUNNABLE)
+  //     not_RUNNABLE=0;
+  // }while (not_RUNNABLE && !cas(&myproc()->state,old_state,RUNNABLE));
+  // if(myproc()->state==RUNNABLE)
+  //   sched();
+
   acquire(&ptable.lock);  //DOC: yieldlock
   myproc()->state = RUNNABLE;
   sched();
@@ -504,7 +578,7 @@ forkret(void)
 {
   static int first = 1;
   // Still holding ptable.lock from scheduler.
-  release(&ptable.lock);
+  release(&ptable.lock); //TODO: HOW TO USE CAS
 
   if (first) {
     // Some initialization functions must be run in the context
@@ -539,7 +613,7 @@ sleep(void *chan, struct spinlock *lk)
   // so it's okay to release lk.
   if(lk != &ptable.lock){  //DOC: sleeplock0
     acquire(&ptable.lock);  //DOC: sleeplock1
-    release(lk);
+    release(lk); //TODO: HOW TO CHANGE TO CAS
   }
   // Go to sleep.
   p->chan = chan;
@@ -552,7 +626,7 @@ sleep(void *chan, struct spinlock *lk)
 
   // Reacquire original lock.
   if(lk != &ptable.lock){  //DOC: sleeplock2
-    release(&ptable.lock);
+    release(&ptable.lock); //TODO: HOW TO CHANGE TO CAS
     acquire(lk);
   }
 }
@@ -564,6 +638,19 @@ static void
 wakeup1(void *chan)
 {
   struct proc *p;
+//With CAS TODO: show Avishay - may simplify the canges to cas - is the while replaces the if?
+  // int old_state;
+  // int still_SLEEPING=1;
+  // int change_state=0;
+  // for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  // do{
+  //   old_state=p->state;
+  //   if(p->state!=SLEEPING)
+  //     still_SLEEPING=0;
+  //   if(p->state == SLEEPING && p->chan == chan)
+  //     change_state=1;
+  // }while(still_SLEEPING && change_state && !cas(&p->state,old_state,RUNNABLE));
+ // p->state=RUNNABLE; //TODO: need?
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if(p->state == SLEEPING && p->chan == chan)
@@ -574,7 +661,7 @@ wakeup1(void *chan)
 void
 wakeup(void *chan)
 {
-  acquire(&ptable.lock);
+  acquire(&ptable.lock); 
   wakeup1(chan);
   release(&ptable.lock);
 }
@@ -604,7 +691,7 @@ kill(int pid, int signum)
     cprintf("Error: proc.c: kill: ilegal signum value was sent to procces %d\n",pid);
     return -1;
   }
-  acquire(&ptable.lock);
+  acquire(&ptable.lock); //TODO: consult Avishay
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->pid == pid){
       p->pending_Signals |= 1U << signum;//turn on the 'signum'th bit in pending_Signals uint

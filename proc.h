@@ -36,7 +36,11 @@ struct context {
   uint eip;
 };
 
-enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
+enum procstate {UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE};
+// //TODO: need? 
+// #define Min -5
+// enum neg_procsatate {neg_ZOMBIE=Min, neg_RINNUNG, neg_RUNNABLE, neg_SLEEPING, neg_EMBRYO, neg_UNUSED};
+
 
 // Per-process state
 struct proc {
@@ -44,6 +48,7 @@ struct proc {
   pde_t* pgdir;                // Page table
   char *kstack;                // Bottom of kernel stack for this process
   enum procstate state;        // Process state
+  //enum neg_procsatate neg_state         //Process negativ state //TODO: need?
   int pid;                     // Process ID
   struct proc *parent;         // Parent process
   struct trapframe *tf;        // Trap frame for current syscall
