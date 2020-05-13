@@ -20,8 +20,26 @@ extern void forkret(void);
 extern void trapret(void);
 
 static void wakeup1(void *chan);
+void sleep_wait(void* chan);
 
+void occupyProc(struct proc* p,char* str){
+  if(p==0){
+    panic("occupyProc: proc address is 0");
+  }
+  if(DEBUG && 0) cprintf("CPU %d: %s: before occuping\n",mycpu()->apicid,str);
+  pushcli();
+  while(!cas(&p->is_occupied,UNOCCUPIED,OCCUPIED));
+  if(DEBUG && 0) cprintf("CPU %d: %s: after occuping\n",mycpu()->apicid,str);
+}
 
+void unoccupyProc(struct proc* p,char* str){
+  if(p==0)
+    panic("unoccupyProc: proc address is 0");
+  if(DEBUG && 0) cprintf("CPU %d: %s: before unoccuping\n",mycpu()->apicid,str);
+  p->is_occupied=UNOCCUPIED;
+  popcli();
+  if(DEBUG && 0) cprintf("CPU %d: %s: after unoccuping\n",mycpu()->apicid,str);
+}
 
 //  int abs(int value)
 // return the absolut value of an integer
@@ -62,12 +80,10 @@ sigprocmask(uint newMask){
   //With CAS
   struct proc *p= myproc();
   uint oldMask;
-  pushcli(); //disable interrupt
-  while(!cas(&p->is_occupied,UNOCCUPIED,OCCUPIED));
+  occupyProc(p,"sigprocmask");
   oldMask=p->signal_Mask;
   p->signal_Mask = newMask;
-  p->is_occupied = UNOCCUPIED;
-  popcli();  //enable interrupt
+  unoccupyProc(p,"sigprocmask");
   return oldMask;
 }
 
@@ -87,8 +103,7 @@ sigaction(int signum, const struct sigaction *act, struct sigaction *oldact){
       return -1;
     else{
       //With CAS 
-      pushcli();
-      while(!cas(&p->is_occupied,UNOCCUPIED,OCCUPIED));
+      occupyProc(p,"sigaction");
       //acquire(&ptable.lock);
       if(oldact!=0){
       oldact->sa_handler = p->signal_Handlers[signum];
@@ -97,8 +112,7 @@ sigaction(int signum, const struct sigaction *act, struct sigaction *oldact){
       p->signal_Handlers[signum]=act->sa_handler;
       p->siganl_handlers_mask[signum] = act->sigmask;
       //release(&ptable.lock);
-      p->is_occupied=UNOCCUPIED;
-      popcli();
+      unoccupyProc(p,"sigaction");
       return 0;
     }
 }
@@ -178,7 +192,6 @@ allocproc(void)
   int still_unused=1;
 
   //acquire(&ptable.lock);
-  pushcli();
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if(p->state == UNUSED){
       //With CAS
@@ -193,12 +206,12 @@ allocproc(void)
     }
 
   //release(&ptable.lock);
-  popcli();
+  //popcli();
   return 0;
 
 found:
   p->state = EMBRYO;
-  popcli();
+  //popcli();
   //release(&ptable.lock);
 
   p->pid = allocpid();
@@ -253,8 +266,8 @@ userinit(void)
 {
   struct proc *p;
   extern char _binary_initcode_start[], _binary_initcode_size[];
-  int old_state;
-  int still_EMBRYO=1;
+  //int old_state;
+  //int still_EMBRYO=1;
 
   p = allocproc();
   
@@ -285,11 +298,9 @@ userinit(void)
   // release(&ptable.lock);
 
   //With CAS 
-  pushcli();
-  while(!cas(&p->is_occupied,UNOCCUPIED,OCCUPIED));
+  occupyProc(p,"userinit");
   p->state = RUNNABLE;
-  p->is_occupied=UNOCCUPIED;
-  popcli();
+  unoccupyProc(p,"userinit");
 }
 
 // Grow current process's memory by n bytes.
@@ -322,8 +333,8 @@ fork(void)
   int i, pid;
   struct proc *np;
   struct proc *curproc = myproc();
-  int old_state;
-  int not_RUNNABLE=1;
+  //int old_state;
+  //int not_RUNNABLE=1;
 
   // Allocate process.
   if((np = allocproc()) == 0){
@@ -365,11 +376,9 @@ fork(void)
   // release(&ptable.lock);
 
   //With CAS 
-  pushcli();
-  while(!cas(&np->is_occupied,UNOCCUPIED,OCCUPIED));
+  occupyProc(np,"fork");
   np->state = RUNNABLE;
-  np->is_occupied=UNOCCUPIED;
-  popcli();
+  unoccupyProc(np,"fork");
 
   return pid;
 }
@@ -401,32 +410,28 @@ exit(void)
   curproc->cwd = 0;
 
   //acquire(&ptable.lock); //TODO: consult Avishay
-  pushcli();
+  
 
   // Parent might be sleeping in wait().
   wakeup1(curproc->parent);
 
   // Pass abandoned children to init.
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    int is_zombie=0;
-    //occuping the chosen proc
-    while(!cas(&p->is_occupied,UNOCCUPIED,OCCUPIED));
-    
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){    
     if(p->parent == curproc){
+      
+      occupyProc(p,"exit");
       p->parent = initproc;
-      if(p->state == ZOMBIE){
-        is_zombie=1;
+      unoccupyProc(p,"exit");
+      
+      if(abs(p->state) == ZOMBIE){
         wakeup1(initproc);
       }
-    }
-    //unoccuping the chosen proc
-    if(!is_zombie)
-      p->is_occupied=UNOCCUPIED;
-    
+    }    
   }
 
   // Jump into the scheduler, never to return.
-  curproc->state = ZOMBIE;
+  occupyProc(curproc,"exit:end");
+  curproc->state = -ZOMBIE;
   sched();
   panic("zombie exit");
 }
@@ -442,51 +447,41 @@ wait(void)
   
   //acquire(&ptable.lock); //TODO: consult with Avishay
   //With CAS
-  pushcli();
   for(;;){
     // Scan through table looking for exited children.
     havekids = 0;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      //occuping p
-      while(!cas(&p->is_occupied,UNOCCUPIED,OCCUPIED));
+      if(p->parent != curproc)
+        continue;
 
-      if(p->parent != curproc){
-        p->is_occupied=UNOCCUPIED;
-        //continue;
+      havekids = 1;
+      occupyProc(p,"wait");
+      if(p->state == ZOMBIE){
+        // Found one.
+        pid = p->pid;
+        kfree(p->kstack);
+        p->kstack = 0;
+        freevm(p->pgdir);
+        p->pid = 0;
+        p->parent = 0;
+        p->name[0] = 0;
+        p->killed = 0;
+        p->state = UNUSED;
+        //release(&ptable.lock);
+        unoccupyProc(p,"wait");
+        return pid;
       }
-      else{
-        havekids = 1;
-        if(p->state == ZOMBIE){
-          // Found one.
-          pid = p->pid;
-          kfree(p->kstack);
-          p->kstack = 0;
-          freevm(p->pgdir);
-          p->pid = 0;
-          p->parent = 0;
-          p->name[0] = 0;
-          p->killed = 0;
-          p->state = UNUSED;
-          //release(&ptable.lock);
-          p->is_occupied=UNOCCUPIED;
-          popcli();
-          return pid;
-        }
-      }
-      p->is_occupied=UNOCCUPIED;
+      unoccupyProc(p,"wait");
     }
 
     // No point waiting if we don't have any children.
     if(!havekids || curproc->killed){
       //release(&ptable.lock);
-      popcli();
+      
       return -1;
     }
-   
-
     // Wait for children to exit.  (See wakeup1 call in proc_exit.)
-    sleep(curproc, null/*&ptable.lock*/);  //DOC: wait-sleep //TODO: understand if a proc shulde be occupied at this stage
-    popcli();
+    sleep_wait(curproc /*,&ptable.lock*/);  //DOC: wait-sleep 
   }
 }
 
@@ -503,7 +498,6 @@ scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
-  struct proc *curr_proc;
   c->proc = 0;
   
   for(;;){
@@ -513,35 +507,37 @@ scheduler(void)
     // Loop over process table looking for process to run.
     
     // disable interrupts to avoid deadlock.
-    pushcli();
+    
     
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state != RUNNABLE)
-        continue;
+         continue;
 
-      curr_proc=myproc();
+      //curr_proc=myproc();
       //change the state op currnet proc
-      while(!cas(&(curr_proc)->is_occupied,UNOCCUPIED,OCCUPIED));
-      curr_proc->state=-RUNNABLE;
-      
-    
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
-      
+      occupyProc(p,"scheduler");
+      if(p->state==RUNNABLE){
+        if(DEBUG && p->pid > 5 ) cprintf("CPU %d: scheduler: about to tun PID %d\n",c->apicid,p->pid);
+        // Switch to chosen process.  It is the process's job
+        // to release ptable.lock and then reacquire it
+        // before jumping back to us.
+        c->proc = p;
+        switchuvm(p);
+        p->state = -RUNNING;
+        
 
-      swtch(&(c->scheduler), p->context);
-      switchkvm();
+        swtch(&(c->scheduler), p->context);
+        p->state=abs(p->state);
+        switchkvm();
 
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      c->proc = 0;
+        // Process is done running for now.
+        // It should have changed its p->state before coming back.
+        c->proc = 0;
+      }
+      unoccupyProc(p,"scheduler");
     }
     //release(&ptable.lock);
-    popcli();
+    
   }
 }
 
@@ -558,8 +554,10 @@ sched(void)
   int intena;
   struct proc *p = myproc();
 
-  if(!holding(&ptable.lock))
-    panic("sched ptable.lock");
+  // if(!holding(&ptable.lock))
+  //   panic("sched ptable.lock");
+  if(p->is_occupied != OCCUPIED)
+    panic("sched proc->is_uccupied");
   if(mycpu()->ncli != 1)
     panic("sched locks");
   if(p->state == RUNNING)
@@ -568,6 +566,7 @@ sched(void)
     panic("sched interruptible");
   intena = mycpu()->intena;
   swtch(&p->context, mycpu()->scheduler);
+  p->state=abs(p->state);
   mycpu()->intena = intena;
 }
 
@@ -575,15 +574,12 @@ sched(void)
 void
 yield(void)
 {
-  //With CAS
-
   //acquire(&ptable.lock);  //DOC: yieldlock
-  pushcli();
-  while(!cas(&myproc()->is_occupied,UNOCCUPIED,OCCUPIED));
-  myproc()->state = RUNNABLE;
+
+  occupyProc(myproc(),"yield");
+  myproc()->state = -RUNNABLE;
   sched();
-  myproc()->is_occupied=UNOCCUPIED;
-  popcli();
+  unoccupyProc(myproc(),"yield");
   //release(&ptable.lock);
 }
 
@@ -594,7 +590,9 @@ forkret(void)
 {
   static int first = 1;
   // Still holding ptable.lock from scheduler.
-  release(&ptable.lock); //TODO: HOW TO USE CAS
+  //release(&ptable.lock); //TODO: HOW TO USE CAS
+  myproc()->state=RUNNING;
+  unoccupyProc(myproc(),"forkret");
 
   if (first) {
     // Some initialization functions must be run in the context
@@ -607,6 +605,40 @@ forkret(void)
 
   // Return to "caller", actually trapret (see allocproc).
 }
+
+void
+sleep_wait(void *chan){
+  struct proc *p = myproc();
+  
+  if(p == 0)
+    panic("sleep");
+
+
+  occupyProc(p,"sleep");
+  // Must acquire ptable.lock in order to
+  // change p->state and then call sched.
+  // Once we hold ptable.lock, we can be
+  // guaranteed that we won't miss any wakeup
+  // (wakeup runs with ptable.lock locked),
+  // so it's okay to release lk.
+  // MAY&AVISHAI: the only function who calls with lk=null
+  // is wait(). and wait alreay performed pushcli() and 
+  //perform popcli() after returning from sleep.
+ 
+  // Go to sleep.
+  p->chan = chan;
+  p->state = -SLEEPING;
+
+  sched();
+
+  // Tidy up.
+  p->chan = 0;
+
+  unoccupyProc(p,"sleep");
+  
+
+}
+
 
 // Atomically release lock and sleep on chan.
 // Reacquires lock when awakened.
@@ -622,7 +654,7 @@ sleep(void *chan, struct spinlock *lk)
     panic("sleep without lk");
 
 
-  while(!cas(&p->is_occupied,UNOCCUPIED,OCCUPIED));
+  occupyProc(p,"sleep");
   // Must acquire ptable.lock in order to
   // change p->state and then call sched.
   // Once we hold ptable.lock, we can be
@@ -634,23 +666,21 @@ sleep(void *chan, struct spinlock *lk)
   //perform popcli() after returning from sleep.
   if(lk != null){  //DOC: sleeplock0
     //acquire(&ptable.lock);  //DOC: sleeplock1
-    pushcli();
     release(lk); 
   }
   // Go to sleep.
   p->chan = chan;
-  p->state = SLEEPING;
+  p->state = -SLEEPING;
 
   sched();
 
   // Tidy up.
   p->chan = 0;
 
-  p->is_occupied=OCCUPIED;
+  unoccupyProc(p,"sleep");
   // Reacquire original lock.
   if(lk != null){  //DOC: sleeplock2
    // release(&ptable.lock); 
-    popcli();
     acquire(lk);
   }
 }
@@ -664,10 +694,15 @@ wakeup1(void *chan)
 {
   struct proc *p;
    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-   while(!cas(&p->is_occupied,UNOCCUPIED,OCCUPIED))
-    if(abs(p->state)==SLEEPING && p->chan == chan)
-        p->state = RUNNABLE;
-    p->is_occupied=UNOCCUPIED;
+    if(abs(p->state)==SLEEPING && p->chan == chan){
+      
+      occupyProc(p,"wakeup1");
+
+      if(abs(p->state)==SLEEPING && p->chan == chan)
+          p->state = RUNNABLE; //does not go trough sched
+      
+      unoccupyProc(p,"wakeup1");
+    }
 }
 
 // Wake up all processes sleeping on chan.
@@ -705,18 +740,16 @@ kill(int pid, int signum)
   //   }
   // }
   // release(&ptable.lock);
-  pushcli();
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->pid == pid){
-      while(!cas(&p->state,UNOCCUPIED,OCCUPIED));
+      occupyProc(p,"kill");
       if(p->pid == pid){
         p->pending_Signals |= 1U << signum;//turn on the 'signum'th bit in pending_Signals uint
         // Wake process from sleep if necessary.
         if(p->state == SLEEPING)
           p->state = RUNNABLE;
       }
-      p->is_occupied=UNOCCUPIED;
-      popcli();
+      unoccupyProc(p,"kill");
       return 0;
     }
   }
