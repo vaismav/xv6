@@ -795,6 +795,7 @@ concreate(void)
       exit();
     else
       wait();
+    printf(1, "concreate finished run %d\n", i);
   }
 
   memset(fa, 0, sizeof(fa));
@@ -1572,10 +1573,13 @@ validatetest(void)
     if((pid = fork()) == 0){
       // try to crash the kernel by passing in a badly placed integer
       validateint((int*)p);
+      printf(stdout, "finished validateint %x\n",p);
       exit();
     }
     sleep(0);
+    printf(stdout, "finished sleep(0) 1\n");
     sleep(0);
+    printf(stdout, "finished sleep(o) 2\n");
     kill(pid, SIGKILL);
     wait();
 

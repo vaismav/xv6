@@ -3,6 +3,9 @@ typedef unsigned short ushort;
 typedef unsigned char  uchar;
 typedef uint pde_t;
 #define null 0 
+#define false 0
+#define true 1
+
 #define DEBUG 0
 
 #define OCCUPIED 1

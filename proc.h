@@ -57,6 +57,7 @@ struct proc {
   char name[16];               // Process name (debugging)
                                //OURs
   int is_occupied ;            //used by CAS
+  int sleep_wake_sync;
   uint pending_Signals;        //32bit array, stored as type uint
   uint signal_Mask;            //32bit array, stored as type uint
   void* signal_Handlers[32];   //Array of size 32, of type void*
