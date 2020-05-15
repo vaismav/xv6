@@ -14,7 +14,7 @@ struct {
 } ptable;
 
 static struct proc *initproc;
-
+int check = 1;
 int nextpid = 1;
 extern void forkret(void);
 extern void trapret(void);
@@ -22,6 +22,7 @@ extern void trapret(void);
 static void wakeup1(void *chan);
 void sleep_wait(void* chan);
 
+//accuire the proc and disable interrupts
 void occupyProc(struct proc* p,char* str){
   if(p==0){
     panic("occupyProc: proc address is 0");
@@ -32,6 +33,7 @@ void occupyProc(struct proc* p,char* str){
   if(DEBUG && 0) cprintf("CPU %d: %s: after occuping\n",mycpu()->apicid,str);
 }
 
+//relese the proc and enable interrupts 
 void unoccupyProc(struct proc* p,char* str){
   if(p==0)
     panic("unoccupyProc: proc address is 0");
@@ -49,6 +51,48 @@ int abs(int value){
   return value;
 }
 
+// get proc::state vlaue and return
+// a representing string
+char* stateToStr(int state){
+  switch(abs(state)){
+    case UNUSED:
+      return "UNUSED";
+    case EMBRYO:
+      return "EMBRYO";
+    case SLEEPING:
+      if(state>0)
+        return "SLEEPING";
+      else return "-SLEEPING";
+    case RUNNABLE:
+      if(state>0)
+        return "RUNNABLE";
+      else return "-RUNNABLE";
+    case RUNNING:
+      if(state>0)
+        return "RUNNING";
+      else return "-RUNNING";
+    case ZOMBIE:
+      if(state>0)
+        return "ZOMBIE";
+      else return "-ZOMBIE";
+  }
+  return "INVALID-STATE";
+}
+
+//print the ptable
+void printPtable(void){
+  struct proc* p;
+  int procsToPrint=7;
+  int i=0;
+  cprintf("#########################################################################\n");
+  cprintf("N0\t| PID\t| STATE\n");
+  for(p = ptable.proc; (p < &ptable.proc[NPROC]) && (i < procsToPrint); p++){
+    cprintf("%d\t| %d\t| %s\n",i,p->pid,stateToStr(p->state));
+    i++;
+  }
+  cprintf("#########################################################################\n");
+}
+
 /**void sigret(void)
  * called implicitly when returning from user space after handling a signal. 
  * This system call is responsible for restoring the process to its original workflow
@@ -56,7 +100,7 @@ int abs(int value){
 void
 sigret(void){
   struct proc *p= myproc();
-  if(DEBUG && 1) cprintf("PID %d: proc.c: sigret: entered function \n",p->pid);
+  if(DEBUG && 0) cprintf("PID %d: proc.c: sigret: entered function \n",p->pid);
   memmove(p->tf,p->backup_tf,sizeof(struct trapframe));
   p->signal_Mask=p->signals_mask_backup;
 }
@@ -169,13 +213,11 @@ allocpid(void)
 
 //With CAS
   int oldpid;
-  pushcli();
   do{
      oldpid=nextpid;
    }
   while (!cas(&nextpid, oldpid, oldpid+1));
-  popcli();
-  return oldpid+1;
+  return oldpid;
 }
 
 //PAGEBREAK: 32
@@ -223,7 +265,7 @@ found:
   }
   p->pending_Signals= 0;
   p->signal_Mask=0;
-  
+  p->is_occupied=UNOCCUPIED;
   // Allocate backup trapframe 
   if((p->backup_tf = (struct trapframe*)kalloc()) == 0){
     p->state = UNUSED;
@@ -499,40 +541,53 @@ scheduler(void)
   struct proc *p;
   struct cpu *c = mycpu();
   c->proc = 0;
+  int countFlag = 0;
+  int checktest = check++;
   
   for(;;){
     // Enable interrupts on this processor.
     sti();
-
+    if(DEBUG && 0) cprintf("##########################################\nCPU %d: CHECKTEST = %d\n",c->apicid,checktest);
     // Loop over process table looking for process to run.
     
     // disable interrupts to avoid deadlock.
-    
+    countFlag++;
+    if(countFlag > 5000){
+      if(DEBUG && 1 ) {
+        cprintf("CPU %d: scheduler: looks for RUNNABLE proc\n",c->apicid);
+        printPtable();
+      }
+      countFlag=0;
+    }
     
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state != RUNNABLE)
          continue;
-
+      //reseting the search flag for DEBUG
+      countFlag=0;
       //curr_proc=myproc();
       //change the state op currnet proc
       occupyProc(p,"scheduler");
       if(p->state==RUNNABLE){
-        if(DEBUG && p->pid > 5 ) cprintf("CPU %d: scheduler: about to tun PID %d\n",c->apicid,p->pid);
+        
         // Switch to chosen process.  It is the process's job
         // to release ptable.lock and then reacquire it
         // before jumping back to us.
         c->proc = p;
         switchuvm(p);
+        
+        if(DEBUG && 1 ) cprintf("CPU %d: scheduler: about to run PID %d with state %s\n",c->apicid,p->pid,stateToStr(p->state));
         p->state = -RUNNING;
         
-
         swtch(&(c->scheduler), p->context);
         p->state=abs(p->state);
+        if(DEBUG && 1 ) cprintf("CPU %d: scheduler: finish to run PID %d  with state %s\n",c->apicid,p->pid,stateToStr(p->state));
         switchkvm();
 
         // Process is done running for now.
         // It should have changed its p->state before coming back.
         c->proc = 0;
+        
       }
       unoccupyProc(p,"scheduler");
     }
@@ -654,7 +709,7 @@ sleep(void *chan, struct spinlock *lk)
     panic("sleep without lk");
 
 
-  occupyProc(p,"sleep");
+  
   // Must acquire ptable.lock in order to
   // change p->state and then call sched.
   // Once we hold ptable.lock, we can be
@@ -666,6 +721,7 @@ sleep(void *chan, struct spinlock *lk)
   //perform popcli() after returning from sleep.
   if(lk != null){  //DOC: sleeplock0
     //acquire(&ptable.lock);  //DOC: sleeplock1
+    occupyProc(p,"sleep");
     release(lk); 
   }
   // Go to sleep.
@@ -677,10 +733,11 @@ sleep(void *chan, struct spinlock *lk)
   // Tidy up.
   p->chan = 0;
 
-  unoccupyProc(p,"sleep");
+  
   // Reacquire original lock.
   if(lk != null){  //DOC: sleeplock2
-   // release(&ptable.lock); 
+   // release(&ptable.lock);
+   unoccupyProc(p,"sleep"); 
     acquire(lk);
   }
 }
