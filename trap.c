@@ -201,6 +201,8 @@ handleSignal(struct trapframe *tf){
                 // Wake process from sleep if necessary. TODO: need to ass CAS usage?
                 if(p->state == SLEEPING)
                   p->state = RUNNABLE;
+                if(p->state == -SLEEPING)
+                  p->state = -RUNNABLE;
                 return;
               
             }

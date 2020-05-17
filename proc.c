@@ -23,6 +23,10 @@ extern void trapret(void);
 static void wakeup1(void *chan);
 void sleep_wait(void* chan);
 
+void lockWakeSleep(){
+  while(!cas(&ptable.sleep_wake_sync,UNOCCUPIED,OCCUPIED));
+}
+
 //accuire the proc and disable interrupts
 void occupyProc(struct proc* p,char* str){
   if(p==0){
@@ -34,6 +38,16 @@ void occupyProc(struct proc* p,char* str){
   if(DEBUG && 0) cprintf("CPU %d: %s: after occuping\n",mycpu()->apicid,str);
 }
 
+//accuire the proc without disable interrupts
+void occupyProcNoCLI(struct proc* p,char* str){
+  if(p==0){
+    panic("occupyProc: proc address is 0");
+  }
+  if(DEBUG && 0) cprintf("CPU %d: %s: before occuping\n",mycpu()->apicid,str);
+  while(!cas(&p->is_occupied,UNOCCUPIED,OCCUPIED));
+  if(DEBUG && 0) cprintf("CPU %d: %s: after occuping\n",mycpu()->apicid,str);
+}
+
 //relese the proc and enable interrupts 
 void unoccupyProc(struct proc* p,char* str){
   if(p==0)
@@ -41,6 +55,15 @@ void unoccupyProc(struct proc* p,char* str){
   if(DEBUG && 0) cprintf("CPU %d: %s: before unoccuping\n",mycpu()->apicid,str);
   p->is_occupied=UNOCCUPIED;
   popcli();
+  if(DEBUG && 0) cprintf("CPU %d: %s: after unoccuping\n",mycpu()->apicid,str);
+}
+
+//relese the proc and enable interrupts 
+void unoccupyProcNoCLI(struct proc* p,char* str){
+  if(p==0)
+    panic("unoccupyProc: proc address is 0");
+  if(DEBUG && 0) cprintf("CPU %d: %s: before unoccuping\n",mycpu()->apicid,str);
+  p->is_occupied=UNOCCUPIED;
   if(DEBUG && 0) cprintf("CPU %d: %s: after unoccuping\n",mycpu()->apicid,str);
 }
 
@@ -459,9 +482,9 @@ exit(void)
   
 
   // Parent might be sleeping in wait().
-  pushcli();
+  
   wakeup1(curproc->parent);
-  popcli();
+  
   // Pass abandoned children to init.
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){    
     if(p->parent == curproc){
@@ -471,9 +494,9 @@ exit(void)
       unoccupyProc(p,"exit");
       
       if(abs(p->state) == ZOMBIE){
-        pushcli();
+        
         wakeup1(initproc);
-        popcli();
+        
       }
     }    
   }
@@ -592,19 +615,25 @@ scheduler(void)
         p->state=abs(p->state);
         if(DEBUG && 1 ) cprintf("CPU %d: scheduler: finish to run PID %d  with state %s\n",c->apicid,p->pid,stateToStr(p->state));
         switchkvm();
-        
-        //release ptable.sleep_wake_sync if p swtch from sleep()
-        if(p->sleep_wake_sync == true){
-          p->sleep_wake_sync = false;
-          ptable.sleep_wake_sync = UNOCCUPIED;
-          if(DEBUG && 1) cprintf("CPU %d: sceduler: sleep_wake_sync after release\n",mycpu()->apicid);
-        }
+
+    
         // Process is done running for now.
         // It should have changed its p->state before coming back.
         c->proc = 0;
         
       }
-      unoccupyProc(p,"scheduler");
+      //release ptable.sleep_wake_sync if p swtch from sleep()
+      if(p->sleep_wake_sync == true){
+        p->sleep_wake_sync = false;
+        unoccupyProcNoCLI(p,"scheduler");
+        ptable.sleep_wake_sync = UNOCCUPIED;
+        popcli();
+        if(DEBUG && 1) cprintf("CPU %d: sceduler: sleep_wake_sync after release\n",mycpu()->apicid);
+      }
+      else{
+        unoccupyProc(p,"scheduler");
+      }
+      
     }
     //release(&ptable.lock);
     
@@ -682,9 +711,9 @@ sleep_wait(void *chan){
   
   if(p == 0)
     panic("sleep");
-  
+  pushcli();
   while(!cas(&ptable.sleep_wake_sync,UNOCCUPIED,OCCUPIED));
-  occupyProc(p,"sleep");
+  occupyProcNoCLI(p,"sleep");
   if(DEBUG && 1) cprintf("CPU %d: sleep_wait: sleep_wake_sync after acqire\n",mycpu()->apicid);
   p->sleep_wake_sync = OCCUPIED;
   // Must acquire ptable.lock in order to
@@ -742,8 +771,9 @@ sleep(void *chan, struct spinlock *lk)
     //acquire(&ptable.lock);  //DOC: sleeplock1
     if(DEBUG && 1) cprintf("CPU %d: sleep: sleep_wake_sync before acqire\n",mycpu()->apicid);
     //its the scheduler job to release the sleep_wake_sync after the proc went SLEEPING
+    pushcli();
     while(!cas(&ptable.sleep_wake_sync,UNOCCUPIED,OCCUPIED));
-    occupyProc(p,"sleep");
+    occupyProcNoCLI(p,"sleep");
     release(lk); 
   }
   p->sleep_wake_sync = true;
@@ -773,23 +803,23 @@ static void
 wakeup1(void *chan)
 {
   struct proc *p;
-  // pushcli();
-  // if(DEBUG && 1) cprintf("CPU %d: wakeup1: sleep_wake_sync before acqire\n",mycpu()->apicid);
-  while(!cas(&ptable.sleep_wake_sync,UNOCCUPIED,OCCUPIED)){}
   
+  // if(DEBUG && 1) cprintf("CPU %d: wakeup1: sleep_wake_sync before acqire\n",mycpu()->apicid);
+  pushcli();
+  lockWakeSleep();  
    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if(abs(p->state)==SLEEPING && p->chan == chan){
-      occupyProc(p,"wakeup1");
+      occupyProcNoCLI(p,"wakeup1");
 
       if(abs(p->state)==SLEEPING && p->chan == chan)
           p->state = RUNNABLE; //does not go trough sched
       
-      unoccupyProc(p,"wakeup1");
+      unoccupyProcNoCLI(p,"wakeup1");
     }
   
   ptable.sleep_wake_sync = UNOCCUPIED;
   // if(DEBUG && 1) cprintf("CPU %d: wakeup1: sleep_wake_sync after relese\n",mycpu()->apicid);
-  // popcli();
+ popcli();
 }
 
 // Wake up all processes sleeping on chan.
@@ -797,13 +827,12 @@ void
 wakeup(void *chan)
 {
   //acquire(&ptable.lock); 
-  pushcli();
+  
   // cprintf("CPU %d: wakeup: sleep_wake_sync before acqire\n",mycpu()->apicid);
   // while(!cas(&ptable.sleep_wake_sync,UNOCCUPIED,OCCUPIED));
   wakeup1(chan); //CAS in wakeup1
   // ptable.sleep_wake_sync = UNOCCUPIED;
   // cprintf("CPU %d: wakeup: sleep_wake_sync after relese\n",mycpu()->apicid);
-  popcli();
   //release(&ptable.lock);
 }
 
@@ -833,6 +862,7 @@ kill(int pid, int signum)
   // release(&ptable.lock);
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->pid == pid){
+
       occupyProc(p,"kill");
       if(p->pid == pid){
         p->pending_Signals |= 1U << signum;//turn on the 'signum'th bit in pending_Signals uint
