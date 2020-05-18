@@ -36,7 +36,7 @@ struct context {
   uint eip;
 };
 
-enum procstate {UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE};
+enum procstate  {UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE};
 
 
 
@@ -45,7 +45,7 @@ struct proc {
   uint sz;                     // Size of process memory (bytes)
   pde_t* pgdir;                // Page table
   char *kstack;                // Bottom of kernel stack for this process
-  enum procstate state;        // Process state
+  volatile enum procstate state;        // Process state
   int pid;                     // Process ID
   struct proc *parent;         // Parent process
   struct trapframe *tf;        // Trap frame for current syscall
@@ -57,7 +57,7 @@ struct proc {
   char name[16];               // Process name (debugging)
                                //OURs
   int is_occupied ;            //used by CAS
-  int sleep_wake_sync;
+  int sleep_wake_sync;         //flag wheter came back from sleep
   uint pending_Signals;        //32bit array, stored as type uint
   uint signal_Mask;            //32bit array, stored as type uint
   void* signal_Handlers[32];   //Array of size 32, of type void*

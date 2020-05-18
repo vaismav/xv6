@@ -1568,9 +1568,11 @@ validatetest(void)
 
   printf(stdout, "validate test\n");
   hi = 1100*1024;
-
+  if(DEBUG &1)printf(stdout, "usertests: validate test: enterd \n");
   for(p = 0; p <= (uint)hi; p += 4096){
+    if(DEBUG &1)printf(stdout, "usertests: validate test: enterd for\n");
     if((pid = fork()) == 0){
+     // if(DEBUG &1)printf(stdout, "usertests: validate test: enterd if\n");
       // try to crash the kernel by passing in a badly placed integer
       validateint((int*)p);
       
@@ -1581,6 +1583,7 @@ validatetest(void)
     sleep(0);
     
     kill(pid, SIGKILL);
+    
     wait();
 
     // try to crash the kernel by passing in a bad string pointer
