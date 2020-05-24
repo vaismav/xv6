@@ -21,7 +21,6 @@ alltraps:
   addl $4, %esp
 
   # Return falls through to trapret...
-  #call the handler? put it in trap?
 .globl trapret
 trapret:
   popal
@@ -31,4 +30,3 @@ trapret:
   popl %ds
   addl $0x8, %esp  # trapno and errcode
   iret
-

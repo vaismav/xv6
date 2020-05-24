@@ -390,9 +390,9 @@ preempt(void)
   }
   close(pfds[0]);
   printf(1, "kill... ");
-  kill(pid1, SIGKILL);
-  kill(pid2, SIGKILL);
-  kill(pid3, SIGKILL);
+  kill(pid1);
+  kill(pid2);
+  kill(pid3);
   printf(1, "wait... ");
   wait();
   wait();
@@ -446,7 +446,7 @@ mem(void)
     m1 = malloc(1024*20);
     if(m1 == 0){
       printf(1, "couldn't allocate mem?!!\n");
-      kill(ppid, SIGKILL);
+      kill(ppid);
       exit();
     }
     free(m1);
@@ -795,7 +795,6 @@ concreate(void)
       exit();
     else
       wait();
-    printf(1, "concreate finished run %d\n", i);
   }
 
   memset(fa, 0, sizeof(fa));
@@ -1504,7 +1503,7 @@ sbrktest(void)
     }
     if(pid == 0){
       printf(stdout, "oops could read %x = %x\n", a, *a);
-      kill(ppid, SIGKILL);
+      kill(ppid);
       exit();
     }
     wait();
@@ -1533,7 +1532,7 @@ sbrktest(void)
   for(i = 0; i < sizeof(pids)/sizeof(pids[0]); i++){
     if(pids[i] == -1)
       continue;
-    kill(pids[i], SIGKILL);
+    kill(pids[i]);
     wait();
   }
   if(c == (char*)0xffffffff){
@@ -1568,22 +1567,16 @@ validatetest(void)
 
   printf(stdout, "validate test\n");
   hi = 1100*1024;
-  if(DEBUG &1)printf(stdout, "usertests: validate test: enterd \n");
+
   for(p = 0; p <= (uint)hi; p += 4096){
-    if(DEBUG &1)printf(stdout, "usertests: validate test: enterd for\n");
     if((pid = fork()) == 0){
-     // if(DEBUG &1)printf(stdout, "usertests: validate test: enterd if\n");
       // try to crash the kernel by passing in a badly placed integer
       validateint((int*)p);
-      
       exit();
     }
     sleep(0);
-    
     sleep(0);
-    
-    kill(pid, SIGKILL);
-    
+    kill(pid);
     wait();
 
     // try to crash the kernel by passing in a bad string pointer

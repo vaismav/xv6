@@ -10,7 +10,7 @@
 #include "spinlock.h"
 
 void
-initlock(struct spinlock *lk, char *name) //TODO: do we need it??
+initlock(struct spinlock *lk, char *name)
 {
   lk->name = name;
   lk->locked = 0;
@@ -25,10 +25,8 @@ void
 acquire(struct spinlock *lk)
 {
   pushcli(); // disable interrupts to avoid deadlock.
-  if(holding(lk)){
-    cprintf("%s ",lk->name);
+  if(holding(lk))
     panic("acquire");
-  }
 
   // The xchg is atomic.
   while(xchg(&lk->locked, 1) != 0)

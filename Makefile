@@ -181,7 +181,6 @@ UPROGS=\
 	_usertests\
 	_wc\
 	_zombie\
-	_signalTest\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
@@ -254,7 +253,6 @@ EXTRA=\
 	printf.c umalloc.c\
 	README dot-bochsrc *.pl toc.* runoff runoff1 runoff.list\
 	.gdbinit.tmpl gdbutil\
-	signalTest.c\
 
 dist:
 	rm -rf dist

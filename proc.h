@@ -1,4 +1,3 @@
-
 // Per-CPU state
 struct cpu {
   uchar apicid;                // Local APIC ID
@@ -9,10 +8,7 @@ struct cpu {
   int ncli;                    // Depth of pushcli nesting.
   int intena;                  // Were interrupts enabled before pushcli?
   struct proc *proc;           // The process running on this cpu or null
-
 };
-
-
 
 extern struct cpu cpus[NCPU];
 extern int ncpu;
@@ -36,16 +32,14 @@ struct context {
   uint eip;
 };
 
-enum procstate  {UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE};
-
-
+enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
 // Per-process state
 struct proc {
   uint sz;                     // Size of process memory (bytes)
   pde_t* pgdir;                // Page table
   char *kstack;                // Bottom of kernel stack for this process
-  volatile enum procstate state;        // Process state
+  enum procstate state;        // Process state
   int pid;                     // Process ID
   struct proc *parent;         // Parent process
   struct trapframe *tf;        // Trap frame for current syscall
@@ -55,18 +49,8 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
-                               //OURs
-  int is_occupied ;            //used by CAS
-  int sleep_wake_sync;         //flag wheter came back from sleep
-  uint pending_Signals;        //32bit array, stored as type uint
-  uint signal_Mask;            //32bit array, stored as type uint
-  void* signal_Handlers[32];   //Array of size 32, of type void*
-  uint siganl_handlers_mask[32];  //Array of the signal mask of the signal handlers
-  struct trapframe *backup_tf;   //User tf backup
-  uint signals_mask_backup;     //signals mask backup for user mode signal handlers     
-  
-
-  
+  //Swap file. must initiate with create swap file
+  struct file *swapFile;      //page file
 };
 
 // Process memory is laid out contiguously, low addresses first:
@@ -74,4 +58,3 @@ struct proc {
 //   original data and bss
 //   fixed-size stack
 //   expandable heap
-
