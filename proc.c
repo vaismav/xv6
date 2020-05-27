@@ -112,6 +112,28 @@ found:
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
 
+  // initializing swapFile
+  // upon failure free kstack and return 0
+  if(createSwapFile(p)!=0){
+    kfree(p->kstack);
+    return 0;
+  }
+
+  for (int i = 0; i < MAX_PSYC_PAGES; i++)
+  {
+    p->swapPages[i].is_occupied=0;
+    p->swapPages[i].va=0xffffffff; //TODO: -ok?
+    p->memoryPages[i].va=0xffffffff; //TODO: -ok?
+    if(i==MAX_PSYC_PAGES-1){
+      p->swapPages[i+1].is_occupied=0;
+      p->swapPages[i+1].va=0xffffffff; //TODO: -ok?
+    }
+  }
+  p->pagesInMemory=0;
+  p->pagesInSwap=0;
+  
+  
+
   return p;
 }
 
@@ -196,6 +218,8 @@ fork(void)
     np->state = UNUSED;
     return -1;
   }
+  np->pagesInMemory=curproc->pagesInMemory;
+  np->pagesInSwap=curproc->pagesInSwap;
   np->sz = curproc->sz;
   np->parent = curproc;
   *np->tf = *curproc->tf;
@@ -211,6 +235,31 @@ fork(void)
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
 
   pid = np->pid;
+
+  //the swapFile of child is like the swapFile of parent
+  char buffer[PGSIZE]=""; 
+  int numRead=0;
+  int placeOnFile=0;
+  while((numRead=readFromSwapFile(curproc,buffer,placeOnFile,sizeof(buffer)))){ //have something to read
+  if(np->pid>2){
+    if(writeToSwapFile(np,buffer,placeOnFile,numRead)==-1) 
+      return -1;
+    placeOnFile+=numRead;
+    } 
+  }
+
+  //duplicate the process
+  for (int i = 0; i < MAX_PSYC_PAGES; i++)
+  {
+    np->swapPages[i].is_occupied=curproc->swapPages[i].is_occupied;
+    np->swapPages[i].va=curproc->swapPages[i].va; 
+    np->memoryPages[i].va=curproc->memoryPages[i].va;
+    if(i==MAX_PSYC_PAGES-1){
+      np->swapPages[i+1].is_occupied=curproc->swapPages[i].is_occupied;
+      np->swapPages[i+1].va=curproc->swapPages[i].va; 
+    }
+  }
+  
 
   acquire(&ptable.lock);
 
@@ -241,6 +290,8 @@ exit(void)
       curproc->ofile[fd] = 0;
     }
   }
+  if(removeSwapFile(curproc)!=0)
+      return -1;
 
   begin_op();
   iput(curproc->cwd);
@@ -277,6 +328,17 @@ wait(void)
   struct proc *curproc = myproc();
   
   acquire(&ptable.lock);
+  //enitialize all
+  for (int i = 0; i < MAX_PSYC_PAGES; i++)
+  {
+    p->swapPages[i].is_occupied=0;
+    p->swapPages[i].va=0xffffffff; //TODO: -ok?
+    p->memoryPages[i].va=0xffffffff; //TODO: -ok?
+    if(i==MAX_PSYC_PAGES-1){
+      p->swapPages[i+1].is_occupied=0;
+      p->swapPages[i+1].va=0xffffffff; //TODO: -ok?
+    }
+  } 
   for(;;){
     // Scan through table looking for exited children.
     havekids = 0;

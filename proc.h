@@ -34,6 +34,19 @@ struct context {
 
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
+//To know which pages are in the process' swap file and where they are located in that file
+struct memoryPages_e{ //TODO: see how to do it
+  // struct pagesSwap* next;     //next page
+  // struct pagesSwap* prev;     //prev page
+  uint va;                       //virtual address [10][10][12= 0x0]
+  //uint pgdir;                    //the pgdir of the page TODO:
+};
+
+struct swap_e{
+  char  is_occupied;
+  uint  va;
+};
+
 // Per-process state
 struct proc {
   uint sz;                     // Size of process memory (bytes)
@@ -51,7 +64,18 @@ struct proc {
   char name[16];               // Process name (debugging)
   //Swap file. must initiate with create swap file
   struct file *swapFile;      //page file
+
+  //NEW
+  int pagesInMemory;                      //pages in memmory
+  int pagesInSwap;                        //pages in swap
+  struct memoryPages_e memoryPages[MAX_PSYC_PAGES];  //pages in physical memory
+  struct swap_e swapPages[17];           //pages in swap file
+
 };
+
+
+
+
 
 // Process memory is laid out contiguously, low addresses first:
 //   text

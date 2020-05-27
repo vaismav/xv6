@@ -7,8 +7,46 @@
 #include "proc.h"
 #include "elf.h"
 
+
+
 extern char data[];  // defined by kernel.ld
 pde_t *kpgdir;  // for use in scheduler()
+
+#define FIFO_SWAP 0
+// load a specific page from swapFile
+int
+swap(struct proc *p,uint va){
+  uint vaOut;
+  int method =FIFO_SWAP;
+  int i;
+  //TODO: Choose page to swap out
+  switch(method){
+    default:
+    vaOut=0; //TODO: call function to choose page to swap out
+  }
+  //find unused page in swap
+  i=0;
+  for(; i < 17 ; i++){
+    if(p->swapPages[i].is_occupied == UNOCCUPIED){
+
+    }
+  }
+
+  //write vaOut data to swap page
+  
+  //update p->swapPages in the relevant index
+
+  //update TBL (cr3)
+
+  //kfree(PYS_ADDRESS)
+  
+  //newPageAddress mem=KALLOC for the new page
+
+  //( p->pgdir[PDX(va)] )[PTX(va)] [20 MSB]<- V2P(mem)
+
+
+
+}
 
 // Set up CPU's kernel segment descriptors.
 // Run once on entry on each CPU.
@@ -38,10 +76,14 @@ walkpgdir(pde_t *pgdir, const void *va, int alloc)
   pde_t *pde;
   pte_t *pgtab;
 
-  pde = &pgdir[PDX(va)];
+  pde = &pgdir[PDX(va)];// [20 P][10 F]
   if(*pde & PTE_P){
     pgtab = (pte_t*)P2V(PTE_ADDR(*pde));
-  } else {
+  }
+  else if(*pde & PTE_PG){
+      panic("pde not in memory");
+  }
+  else {
     if(!alloc || (pgtab = (pte_t*)kalloc()) == 0)
       return 0;
     // Make sure all those PTE_P bits are zero.
@@ -186,6 +228,7 @@ inituvm(pde_t *pgdir, char *init, uint sz)
 
   if(sz >= PGSIZE)
     panic("inituvm: more than a page");
+  // allocate page for the pgdir
   mem = kalloc();
   memset(mem, 0, PGSIZE);
   mappages(pgdir, 0, PGSIZE, V2P(mem), PTE_W|PTE_U);
@@ -216,6 +259,21 @@ loaduvm(pde_t *pgdir, char *addr, struct inode *ip, uint offset, uint sz)
   return 0;
 }
 
+int
+allocToSwap(struct proc* p, uint va){
+  pte_t *pde;
+  pte_t *pgtab;
+  // checks
+  pde = &p->pgdir[PDX(va)];
+  if(*pde & PTE_P){
+    pgtab = (pte_t*)P2V(PTE_ADDR(*pde));
+  }
+  else if(*pde & PTE_PG){
+  //TODO: swap
+  }
+
+}
+
 // Allocate page tables and physical memory to grow process from oldsz to
 // newsz, which need not be page aligned.  Returns new size or 0 on error.
 int
@@ -230,7 +288,7 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
     return oldsz;
 
   a = PGROUNDUP(oldsz);
-  for(; a < newsz; a += PGSIZE){
+  for(; a < newsz && a < MAX_PSYC_PAGES*PGSIZE ; a += PGSIZE){
     mem = kalloc();
     if(mem == 0){
       cprintf("allocuvm out of memory\n");
@@ -243,6 +301,28 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       deallocuvm(pgdir, newsz, oldsz);
       kfree(mem);
       return 0;
+    }
+  }
+
+  // allocating pages in swapFile
+  struct proc* p=myproc();
+  
+  int i,foundFreePage;
+
+  for(; a < newsz && a < MAX_TOTAL_PAGES*PGSIZE ; a += PGSIZE){
+    i=0;
+    foundFreePage = 0;
+    // scaning p->swapPages_e[] for Unused pages in swapFile
+    for(; i < 17 && !foundFreePage; i++){
+      if( !p->swapPages[i].is_occupied ){
+        foundFreePage = 1;
+        // setting swap page as occupied
+        p->swapPages[i].is_occupied=1;
+        // setting the co-responding virtual address (a=address) of the page
+        p->swapPages[i].va=a; //[10][10][12 =0x0]
+        allocToSwap();
+        
+      }
     }
   }
   return newsz;

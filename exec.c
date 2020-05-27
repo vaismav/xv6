@@ -39,6 +39,9 @@ exec(char *path, char **argv)
     goto bad;
 
   // Load program into memory.
+  //TODO:
+  //int oldPagesInMemory=curproc->pagesInMemory;
+  //int oldPagesInSwap=curproc->pagesInSwap;
   sz = 0;
   for(i=0, off=elf.phoff; i<elf.phnum; i++, off+=sizeof(ph)){
     if(readi(ip, (char*)&ph, off, sizeof(ph)) != sizeof(ph))
@@ -110,5 +113,9 @@ exec(char *path, char **argv)
     iunlockput(ip);
     end_op();
   }
+  //before end - restore the pagesNUm
+  //TODO:
+  //curproc->pagesInMemory=oldPagesInMemory;
+  //curproc->pagesInSwap=oldPagesInSwap;
   return -1;
 }
