@@ -14,11 +14,13 @@ pde_t *kpgdir;  // for use in scheduler()
 
 #define FIFO_SWAP 0
 // load a specific page from swapFile
+// return 0 on success, and -1 otherwise
 int
 swap(struct proc *p,uint va){
   uint vaOut;
   int method =FIFO_SWAP;
-  int i;
+  int i,stop,offsetIndex;
+  char *mem;
   //TODO: Choose page to swap out
   switch(method){
     default:
@@ -26,26 +28,44 @@ swap(struct proc *p,uint va){
   }
   //find unused page in swap
   i=0;
-  for(; i < 17 ; i++){
-    if(p->swapPages[i].is_occupied == UNOCCUPIED){
-
-    }
+  offsetIndex=-1;
+  for(; i < 17 && offsetIndex < 0 ; i++){
+    if(p->swapPages[i].is_occupied == UNOCCUPIED)
+      offsetIndex=i;
   }
+  if(offsetIndex < 0)
+    panic("swap couldnt find empty page in swap");
 
   //write vaOut data to swap page
-  
-  //update p->swapPages in the relevant index
+  if(writeToSwapFile(p,(char*)vaOut, PGSIZE*offsetIndex ,PGSIZE) < 0){
+    cprintf("failed to write page to swap\n");
+    return -1;
+  } else {
+    //update p->swapPages in the relevant index
+    p->swapPages[offsetIndex].is_occupied = OCCUPIED;
+    p->swapPages[offsetIndex].va = va;
+  }
 
   //update TBL (cr3)
+  lcr3(V2P(p->pgdir));
 
   //kfree(PYS_ADDRESS)
-  
+  kfree(vaOut);
   //newPageAddress mem=KALLOC for the new page
-
+  mem=kalloc();
+  if(mem == 0){
+    cprintf("swap out of pysical memory\n");
+    return -1;
+  }
   //( p->pgdir[PDX(va)] )[PTX(va)] [20 MSB]<- V2P(mem)
+  //TODO: is it right to use mappages?
+  if(mappages(p->pgdir, (char*)va, PGSIZE, V2P(mem), PTE_W|PTE_U) < 0){
+    cprintf("swap out of pysical memory (2)\n");
+    kfree(mem);
+    return -1;
+  }  
 
-
-
+  return 0;
 }
 
 // Set up CPU's kernel segment descriptors.
