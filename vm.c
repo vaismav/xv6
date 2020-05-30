@@ -12,19 +12,39 @@
 extern char data[];  // defined by kernel.ld
 pde_t *kpgdir;  // for use in scheduler()
 
-#define FIFO_SWAP 0
+#define SCFIFO 0
+#define NFUA 1
+#define LAPA 2
+#define AQ 3
+//none?
+
+
+//checks the refrence bit
+int checkPTE_A(char *va){
+  uint accessed;
+  pte_t *pte = walkpgdir(myproc()->pgdir, (void*)va, 0);
+  if (!*pte)
+    return -1;
+  accessed = (*pte) & PTE_A;
+  if(accessed) //reset
+    (*pte) &= ~PTE_A;
+  return accessed;
+}
+
+
 // load a specific page from swapFile
 // return 0 on success, and -1 otherwise
 int
-swap(struct proc *p,uint va){
-  uint vaOut;
-  int method =FIFO_SWAP;
+swap(struct proc *p,uint va){ //TODO: maybe swap to every method indevidually?
+  uint vaOut; //va of page to swap out
+  int method =SCFIFO;
   int i,stop,offsetIndex;
   char *mem;
-  //TODO: Choose page to swap out
+  //TODO: Choose page to swap out , Q : is the default scfifo \ fifo
   switch(method){
-    default:
-    vaOut=0; //TODO: call function to choose page to swap out
+    default: //scfifo
+      vaOut=select_fifo_swap();
+       //TODO: do swapping
   }
   //find unused page in swap
   i=0;
@@ -51,7 +71,8 @@ swap(struct proc *p,uint va){
 
   //kfree(PYS_ADDRESS)
   kfree(vaOut);
-  //newPageAddress mem=KALLOC for the new page
+  //newPageAddress
+  // mem=KALLOC for the new page
   mem=kalloc();
   if(mem == 0){
     cprintf("swap out of pysical memory\n");
@@ -67,6 +88,34 @@ swap(struct proc *p,uint va){
 
   return 0;
 }
+
+//SELECTION=NFUA
+//SELECTION=LAPA
+
+//SELECTION=SCFIFO
+
+
+uint select_fifo_swap(){
+  uint va_swap_out;
+  int found=0;
+  pte_t *pte1;
+  //find first one that 
+  for (int i = 0; i < MAX_PSYC_PAGES; i++){
+    if(checkPTE_A(myproc()->memoryPages[i].va)<0)
+      panic("vm.c: select_fifo_swap: PTE_A out of bounds");
+    else if(checkPTE_A(myproc()->memoryPages[i].va)==0){ //note that checkPTE_A also reset the flag 
+      if(found==0){
+        va_swap_out=myproc()->memoryPages[i].va;
+        found==1;
+      }
+    }
+  }
+  return va_swap_out; //found it!
+}
+
+//SELECTION=AQ
+//SELECTION=none
+
 
 // Set up CPU's kernel segment descriptors.
 // Run once on entry on each CPU.

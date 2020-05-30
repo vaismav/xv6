@@ -20,7 +20,7 @@ struct run {
 struct {
   struct spinlock lock;
   int use_lock;
-  struct run *freelist;
+  struct run *freelist; 
 } kmem;
 
 // Initialization happens in two phases.
@@ -28,6 +28,27 @@ struct {
 // the pages mapped by entrypgdir on free list.
 // 2. main() calls kinit2() with the rest of the physical pages
 // after installing a full page table that maps them on all cores.
+
+
+//OURS
+int
+count_free_pages(void){
+  int sum=0;
+
+  if(kmem.use_lock)
+    acquire(&kmem.lock);
+  
+  struct run *curr = kmem.freelist;
+  while(curr!=0){
+    sum++;
+    curr=curr->next;
+  }
+
+  if(kmem.use_lock)
+    release(&kmem.lock);
+  return sum;
+}
+
 void
 kinit1(void *vstart, void *vend)
 {

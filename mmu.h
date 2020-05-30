@@ -97,6 +97,7 @@ struct segdesc {
 #define PTE_PS          0x080   // Page Size
 //NEW
 #define PTE_PG          0x200 // Paged out to secondary storage 
+#define PTE_A           0x020   // Accessed
 
 
 // Address in page table or page directory entry

@@ -77,8 +77,14 @@ trap(struct trapframe *tf)
             cpuid(), tf->cs, tf->eip);
     lapiceoi();
     break;
-
-  //PAGEBREAK: 13
+  case T_PGFLT: //TODO: show avishay
+    uint address = rcr2();
+    uint *va = &myproc()->pgdir[PDX(address)];
+    if ((int)va & PTE_P) //not in pgdir
+      if (va[PTX(address)] & PTE_PG && !(va[PTX(address)] & PTE_P)) { //in swapFile
+        swap(myproc(),P2V_WO(address));
+        break;  
+      }
   default:
     if(myproc() == 0 || (tf->cs&3) == 0){
       // In kernel, it must be our mistake.

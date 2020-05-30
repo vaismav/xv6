@@ -20,6 +20,12 @@ extern void trapret(void);
 
 static void wakeup1(void *chan);
 
+int
+getNumberOfFreePages(void)
+{
+  return count_free_pages();
+}
+
 void
 pinit(void)
 {
@@ -122,11 +128,11 @@ found:
   for (int i = 0; i < MAX_PSYC_PAGES; i++)
   {
     p->swapPages[i].is_occupied=0;
-    p->swapPages[i].va=0xffffffff; //TODO: -ok?
-    p->memoryPages[i].va=0xffffffff; //TODO: -ok?
+    p->swapPages[i].va=0xffffffff; 
+    p->memoryPages[i].va=0xffffffff;
     if(i==MAX_PSYC_PAGES-1){
       p->swapPages[i+1].is_occupied=0;
-      p->swapPages[i+1].va=0xffffffff; //TODO: -ok?
+      p->swapPages[i+1].va=0xffffffff; 
     }
   }
   p->pagesInMemory=0;
@@ -332,11 +338,11 @@ wait(void)
   for (int i = 0; i < MAX_PSYC_PAGES; i++)
   {
     p->swapPages[i].is_occupied=0;
-    p->swapPages[i].va=0xffffffff; //TODO: -ok?
-    p->memoryPages[i].va=0xffffffff; //TODO: -ok?
+    p->swapPages[i].va=0xffffffff; 
+    p->memoryPages[i].va=0xffffffff; 
     if(i==MAX_PSYC_PAGES-1){
       p->swapPages[i+1].is_occupied=0;
-      p->swapPages[i+1].va=0xffffffff; //TODO: -ok?
+      p->swapPages[i+1].va=0xffffffff; 
     }
   } 
   for(;;){

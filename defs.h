@@ -78,6 +78,7 @@ char*           kalloc(void);
 void            kfree(char*);
 void            kinit1(void*, void*);
 void            kinit2(void*, void*);
+int             count_free_pages(void);
 
 // kbd.c
 void            kbdintr(void);
@@ -130,6 +131,7 @@ void            userinit(void);
 int             wait(void);
 void            wakeup(void*);
 void            yield(void);
+int             getNumberOfFreePages(void); //ours for cow testing
 
 // swtch.S
 void            swtch(struct context**, struct context*);
@@ -195,6 +197,7 @@ void            switchuvm(struct proc*);
 void            switchkvm(void);
 int             copyout(pde_t*, uint, void*, uint);
 void            clearpteu(pde_t *pgdir, char *uva);
+int             swap(struct proc*, uint); //our swap
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))

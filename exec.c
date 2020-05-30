@@ -39,9 +39,7 @@ exec(char *path, char **argv)
     goto bad;
 
   // Load program into memory.
-  //TODO:
-  //int oldPagesInMemory=curproc->pagesInMemory;
-  //int oldPagesInSwap=curproc->pagesInSwap;
+//TODO: 
   sz = 0;
   for(i=0, off=elf.phoff; i<elf.phnum; i++, off+=sizeof(ph)){
     if(readi(ip, (char*)&ph, off, sizeof(ph)) != sizeof(ph))
@@ -104,6 +102,8 @@ exec(char *path, char **argv)
   curproc->tf->esp = sp;
   switchuvm(curproc);
   freevm(oldpgdir);
+
+  
   return 0;
 
  bad:
