@@ -78,7 +78,12 @@ char*           kalloc(void);
 void            kfree(char*);
 void            kinit1(void*, void*);
 void            kinit2(void*, void*);
+//OURS
 int             count_free_pages(void);
+void            kinc(char*);
+void            kdec(char*);
+int             getRefs(char*);
+
 
 // kbd.c
 void            kbdintr(void);
@@ -197,7 +202,10 @@ void            switchuvm(struct proc*);
 void            switchkvm(void);
 int             copyout(pde_t*, uint, void*, uint);
 void            clearpteu(pde_t *pgdir, char *uva);
-int             swap(struct proc*, uint); //our swap
+//OURS
+int             swap(struct proc*, uint); //swap
+pde_t*          cowuvm(pde_t*, uint);     //cow implmentation
+void            handle_write_fault();
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))

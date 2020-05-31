@@ -77,6 +77,7 @@ struct proc {
   int pagesInSwap;                        //pages in swap
   struct memoryPages_e memoryPages[MAX_PSYC_PAGES];  //pages in physical memory
   struct swap_e swapPages[17];           //pages in swap file
+  
 
 };
 

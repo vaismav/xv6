@@ -296,8 +296,11 @@ exit(void)
       curproc->ofile[fd] = 0;
     }
   }
+
+  
   if(removeSwapFile(curproc)!=0)
       return -1;
+  kfree(curproc->kstack); //TODO: is it enough?
 
   begin_op();
   iput(curproc->cwd);

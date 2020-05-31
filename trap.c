@@ -77,14 +77,27 @@ trap(struct trapframe *tf)
             cpuid(), tf->cs, tf->eip);
     lapiceoi();
     break;
-  case T_PGFLT: //TODO: show avishay
+  case T_PGFLT: 
+  //1) in swap file - need to swap back to pysical memory
+  //2) not it pgdir - need to create
+  //3) RO - first p try to write -> make writeable copy
+  //        second p try to write -> make W and try writung again
     uint address = rcr2();
     uint *va = &myproc()->pgdir[PDX(address)];
-    if ((int)va & PTE_P) //not in pgdir
+    if ((int)va & PTE_P){ //not in pgdir
       if (va[PTX(address)] & PTE_PG && !(va[PTX(address)] & PTE_P)) { //in swapFile
         swap(myproc(),P2V_WO(address));
         break;  
       }
+    }
+    //in pagedir - and not writable
+    if(!(PTE_W & PTE_FLAGS(myproc()->pgdir))){
+      myproc()->tf = tf;
+      handle_write_fault();
+      if(myproc()->killed)
+        exit();
+      break;
+    }
   default:
     if(myproc() == 0 || (tf->cs&3) == 0){
       // In kernel, it must be our mistake.

@@ -100,6 +100,10 @@ exec(char *path, char **argv)
   curproc->sz = sz;
   curproc->tf->eip = elf.entry;  // main
   curproc->tf->esp = sp;
+  /////added
+  removeSwapFile(curproc);
+  createSwapFile(curproc);
+  /////
   switchuvm(curproc);
   freevm(oldpgdir);
 
@@ -114,8 +118,6 @@ exec(char *path, char **argv)
     end_op();
   }
   //before end - restore the pagesNUm
-  //TODO:
-  //curproc->pagesInMemory=oldPagesInMemory;
-  //curproc->pagesInSwap=oldPagesInSwap;
+
   return -1;
 }

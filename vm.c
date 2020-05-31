@@ -145,7 +145,7 @@ walkpgdir(pde_t *pgdir, const void *va, int alloc)
   pde_t *pde;
   pte_t *pgtab;
 
-  pde = &pgdir[PDX(va)];// [20 P][10 F]
+  pde = &pgdir[PDX(va)];// [20 P][12 F]
   if(*pde & PTE_P){
     pgtab = (pte_t*)P2V(PTE_ADDR(*pde));
   }
@@ -389,7 +389,7 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
         p->swapPages[i].is_occupied=1;
         // setting the co-responding virtual address (a=address) of the page
         p->swapPages[i].va=a; //[10][10][12 =0x0]
-        allocToSwap();
+        allocToSwap(p,p->swapPages[i].va); //TODO: need to complete?
         
       }
     }
@@ -459,6 +459,97 @@ clearpteu(pde_t *pgdir, char *uva)
   *pte &= ~PTE_U;
 }
 
+
+//copyuvm in COW
+pde_t*
+cowuvm(pde_t *pgdir, uint sz)
+{
+  pde_t *d;
+  pte_t *pte;
+  uint pa, i, flags;
+  char *mem;
+
+  if((d = setupkvm()) == 0)
+    return 0;
+  for(i = 0; i < sz; i += PGSIZE){
+    if((pte = walkpgdir(pgdir, (void *) i, 0)) == 0)
+      panic("cowuvm: pte should exist");
+    if(!(*pte & PTE_P))
+      panic("cowuvm: page not present");
+    *pte |= PTE_COW; //set the cow flag
+    *pte &= ~PTE_W; //RO
+    pa = PTE_ADDR(*pte);
+    flags = PTE_FLAGS(*pte);
+    //TODO: Increment page reference
+    //update TBL (cr3)
+    lcr3(pa); //TODO: this way?
+    
+    // if((mem = kalloc()) == 0)
+    //   goto bad;
+    // memmove(mem, (char*)P2V(pa), PGSIZE);
+    if(mappages(d, (void*)i, PGSIZE, V2P(mem), flags) < 0) {
+    // kfree(mem);
+      goto bad;
+    }
+  }
+  return d;
+
+bad:
+  freevm(d);
+  return 0;
+}
+
+
+ //if first p tries to write - do a writable copy
+// when second tries to write - remove the RO flag and go back to try writing again
+void
+handle_write_fault(){
+  pte_t *pte;
+  uint pa;
+  uint pan;   
+  uint va = rcr2();
+  uint error = myproc()->tf->err;
+  uint flags;
+  char *mem;
+
+
+  char *a = (char*)PGROUNDDOWN((uint)va); //start of the faulty page
+  //if in kernal - kill
+  if(va >= KERNBASE || (pte = walkpgdir(myproc()->pgdir, a, 0)) == 0){
+    myproc()->killed = 1;
+    return;
+  }
+  if(error & FEC_WR){ //writable page fault
+    if(!(*pte & PTE_COW)){ //if not COW - dont care
+      myproc()->killed = 1;
+      return;
+    }
+    else{ //is cow
+      pa = PTE_ADDR(*pte);
+      char *v = P2V(pa);
+      flags = PTE_FLAGS(*pte);
+      int refrences =getRefs(v);
+
+      if(refrences>1){ //make a copy for myself
+        mem = kalloc(); //new page
+        memmove(mem, v, PGSIZE);
+        pan=V2P(mem); //TODO: right? virtual address of new page
+        *pte = pan | flags | PTE_P | PTE_W; //writable 
+        lcr3(V2P(myproc()->pgdir)); //TODO: right?
+        kdec(v);
+      }
+      else{ //only me
+        *pte |= PTE_W; //writable
+        *pte &= ~PTE_COW;
+        lcr3(V2P(myproc()->pgdir)); //TODO: right?
+      }
+    }
+  }
+  else{ //not writable- dont care
+      return;
+    }
+}
+
 // Given a parent process's page table, create a copy
 // of it for a child.
 pde_t*
@@ -478,6 +569,7 @@ copyuvm(pde_t *pgdir, uint sz)
       panic("copyuvm: page not present");
     pa = PTE_ADDR(*pte);
     flags = PTE_FLAGS(*pte);
+    
     if((mem = kalloc()) == 0)
       goto bad;
     memmove(mem, (char*)P2V(pa), PGSIZE);
