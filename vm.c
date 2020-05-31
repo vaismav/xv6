@@ -420,7 +420,11 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       if(pa == 0)
         panic("kfree");
       char *v = P2V(pa);
-      kfree(v);
+      if(getRefs(v)==1)
+        kfree(v);
+      else
+        kdec(v);
+      
       *pte = 0;
     }
   }
