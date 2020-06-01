@@ -130,6 +130,8 @@ found:
     p->swapPages[i].is_occupied=0;
     p->swapPages[i].va=0xffffffff; 
     p->memoryPages[i].va=0xffffffff;
+    p->memoryPages[i].prev=-1;
+    p->memoryPages[i].next=-1;
     if(i==MAX_PSYC_PAGES-1){
       p->swapPages[i+1].is_occupied=0;
       p->swapPages[i+1].va=0xffffffff; 
@@ -298,10 +300,11 @@ exit(void)
     }
   }
 
-  
+  //ADDED
   if(removeSwapFile(curproc)!=0)
       return -1;
-  kfree(curproc->kstack); //TODO: is it enough?
+  kfree(curproc->kstack);
+  //TODO: free all pages
 
   begin_op();
   iput(curproc->cwd);

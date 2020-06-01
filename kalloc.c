@@ -133,8 +133,7 @@ kfree(char *v)
 
   if(kmem.use_lock)
     acquire(&kmem.lock);
-  //r = (struct run*)v;
-  r=&kmem.refrences[(V2P(v) / PGSIZE)];
+  r = (struct run*)v;
   if(r->ref != 1)
     panic("ref");
     

@@ -12,11 +12,11 @@
 extern char data[];  // defined by kernel.ld
 pde_t *kpgdir;  // for use in scheduler()
 
-#define SCFIFO 0
+#define NONE 0 //SCFIFO
 #define NFUA 1
 #define LAPA 2
-#define AQ 3
-//none?
+#define SCFIFO 3
+#define AQ 4
 
 
 //checks the refrence bit
@@ -37,15 +37,19 @@ int checkPTE_A(char *va){
 int
 swap(struct proc *p,uint va){ //TODO: maybe swap to every method indevidually?
   uint vaOut; //va of page to swap out
-  int method =SCFIFO;
+  //int SELECTION =SCFIFO;
   int i,stop,offsetIndex;
   char *mem;
   //TODO: Choose page to swap out , Q : is the default scfifo \ fifo
-  switch(method){
-    default: //scfifo
-      vaOut=select_fifo_swap();
-       //TODO: do swapping
-  }
+  
+  #if SELECTION == SCFIFO
+    vaOut=select_scfifo_swap();
+  #endif
+
+  #if SELECTION == NFUA
+    vaOut=select_nufa_swap();
+  #endif
+
   //find unused page in swap
   i=0;
   offsetIndex=-1;
@@ -95,15 +99,15 @@ swap(struct proc *p,uint va){ //TODO: maybe swap to every method indevidually?
 //SELECTION=SCFIFO
 
 
-uint select_fifo_swap(){
+uint select_scfifo_swap(void){ //TODO: FIX!!!!! maya
   uint va_swap_out;
   int found=0;
   pte_t *pte1;
   //find first one that 
   for (int i = 0; i < MAX_PSYC_PAGES; i++){
-    if(checkPTE_A(myproc()->memoryPages[i].va)<0)
-      panic("vm.c: select_fifo_swap: PTE_A out of bounds");
-    else if(checkPTE_A(myproc()->memoryPages[i].va)==0){ //note that checkPTE_A also reset the flag 
+    // if(checkPTE_A(myproc()->memoryPages[i].va)<0)
+    //   panic("vm.c: select_fifo_swap: PTE_A out of bounds");
+    if(checkPTE_A(myproc()->memoryPages[i].va)==0){ //note that checkPTE_A also reset the flag 
       if(found==0){
         va_swap_out=myproc()->memoryPages[i].va;
         found==1;
@@ -484,9 +488,8 @@ cowuvm(pde_t *pgdir, uint sz)
     *pte &= ~PTE_W; //RO
     pa = PTE_ADDR(*pte);
     flags = PTE_FLAGS(*pte);
-    //TODO: Increment page reference
     //update TBL (cr3)
-    lcr3(pa); //TODO: this way?
+    lcr3(pa); 
     
     // if((mem = kalloc()) == 0)
     //   goto bad;
@@ -508,11 +511,13 @@ bad:
 // when second tries to write - remove the RO flag and go back to try writing again
 void
 handle_write_fault(){
-  pte_t *pte;
-  uint pa;
+  
+  pte_t *pte; //entry in page table of the faulting page
+  uint pa;    //physical addres of faulting page
   uint pan;   
-  uint va = rcr2();
-  uint error = myproc()->tf->err;
+  uint va = rcr2(); //faulting virtual address 
+  char *v;  //begining of virtual addres of faulting page
+  uint error = myproc()->tf->err; //the error
   uint flags;
   char *mem;
 
@@ -520,32 +525,38 @@ handle_write_fault(){
   char *a = (char*)PGROUNDDOWN((uint)va); //start of the faulty page
   //if in kernal - kill
   if(va >= KERNBASE || (pte = walkpgdir(myproc()->pgdir, a, 0)) == 0){
-    myproc()->killed = 1;
+    //myproc()->killed = 1;
+    panic("vm.c: handle_write_fault: kernal page");
     return;
   }
   if(error & FEC_WR){ //writable page fault
     if(!(*pte & PTE_COW)){ //if not COW - dont care
-      myproc()->killed = 1;
+      //myproc()->killed = 1;
+      panic("vm.c: handle_write_fault: not COW");
       return;
     }
-    else{ //is cow
-      pa = PTE_ADDR(*pte);
-      char *v = P2V(pa);
+    else{ 
+      //if dealing with cow
+      pa = PTE_ADDR(*pte); 
+      v = P2V(pa);
       flags = PTE_FLAGS(*pte);
+      //checks how many refeerance exisit to the page
       int refrences =getRefs(v);
 
-      if(refrences>1){ //make a copy for myself
+      if(refrences>1){ 
+        //make a copy for myself
         mem = kalloc(); //new page
         memmove(mem, v, PGSIZE);
-        pan=V2P(mem); //TODO: right? virtual address of new page
+        pan=V2P(mem); 
         *pte = pan | flags | PTE_P | PTE_W; //writable 
-        lcr3(V2P(myproc()->pgdir)); //TODO: right?
+        lcr3(V2P(myproc()->pgdir)); 
+      // decresing the referance counter for v
         kdec(v);
       }
       else{ //only me
         *pte |= PTE_W; //writable
         *pte &= ~PTE_COW;
-        lcr3(V2P(myproc()->pgdir)); //TODO: right?
+        lcr3(V2P(myproc()->pgdir)); 
       }
     }
   }

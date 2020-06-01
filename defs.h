@@ -205,7 +205,8 @@ void            clearpteu(pde_t *pgdir, char *uva);
 //OURS
 int             swap(struct proc*, uint); //swap
 pde_t*          cowuvm(pde_t*, uint);     //cow implmentation
-void            handle_write_fault();
+void            handle_write_fault(void);
+uint            select_scfifo_swap(void);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))

@@ -77,27 +77,54 @@ trap(struct trapframe *tf)
             cpuid(), tf->cs, tf->eip);
     lapiceoi();
     break;
-  case T_PGFLT: 
+  case T_PGFLT:
   //1) in swap file - need to swap back to pysical memory
   //2) not it pgdir - need to create
   //3) RO - first p try to write -> make writeable copy
   //        second p try to write -> make W and try writung again
     uint address = rcr2();
-    uint *va = &myproc()->pgdir[PDX(address)];
-    if ((int)va & PTE_P){ //not in pgdir
-      if (va[PTX(address)] & PTE_PG && !(va[PTX(address)] & PTE_P)) { //in swapFile
+    pte_t *pte; // virtual address of the page table in the second lvl 
+    uint *pde = &myproc()->pgdir[PDX(address)];
+    if (!((int)pde & PTE_P)){ //not in pgdir
+      if ((int)pde & PTE_PG) { //in swapFile
         swap(myproc(),P2V_WO(address));
         break;  
       }
     }
-    //in pagedir - and not writable
-    if(!(PTE_W & PTE_FLAGS(myproc()->pgdir))){
-      myproc()->tf = tf;
-      handle_write_fault();
-      if(myproc()->killed)
-        exit();
-      break;
+    else{
+      //in pagedir - and not writable
+      if(!(PTE_W & PTE_FLAGS(myproc()->pgdir[PDX(address)]))){
+        myproc()->tf = tf;
+        handle_write_fault();
+        if(myproc()->killed)
+          exit();
+        break;
+      }
+      // if present in pagedir and writable
+      // check for the faulting page in the second level 
+      // get virtual addres of page table by the physical 
+      // address in the pdir entry
+      pte=P2V(PTE_ADDR(pde));
+      // check if the page in pte[DTX(address)] is present
+      if (!((int)pte[PTX(address)] & PTE_P)){ //not in pgdir
+        if ((int)pde & PTE_PG) { //in swapFile
+          swap(myproc(),P2V_WO(address));
+          break;  
+        }
+      }
+      else{
+        //if page is present
+        //checks if page is writable
+        if(!(PTE_W & PTE_FLAGS(pte[PTX(address)]))){
+          myproc()->tf = tf;
+          handle_write_fault();
+          if(myproc()->killed)
+            exit();
+          break;
+        }
+      }
     }
+    
   default:
     if(myproc() == 0 || (tf->cs&3) == 0){
       // In kernel, it must be our mistake.
