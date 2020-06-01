@@ -11,12 +11,16 @@
 
 extern char data[];  // defined by kernel.ld
 pde_t *kpgdir;  // for use in scheduler()
+static int mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm);
+static pte_t *walkpgdir(pde_t *pgdir, const void *va, int alloc);
 
 #define NONE 0 //SCFIFO
 #define NFUA 1
 #define LAPA 2
 #define SCFIFO 3
 #define AQ 4
+
+
 
 
 //checks the refrence bit
@@ -31,11 +35,10 @@ int checkPTE_A(char *va){
   return accessed;
 }
 
-
 // load a specific page from swapFile
 // return 0 on success, and -1 otherwise
 int
-swap(struct proc *p,uint va){ //TODO: maybe swap to every method indevidually?
+swap(struct proc *p,char *va){ //TODO: maybe swap to every method indevidually?
   uint vaOut; //va of page to swap out
   //int SELECTION =SCFIFO;
   int i,stop,offsetIndex;
@@ -74,7 +77,7 @@ swap(struct proc *p,uint va){ //TODO: maybe swap to every method indevidually?
   lcr3(V2P(p->pgdir));
 
   //kfree(PYS_ADDRESS)
-  kfree(vaOut);
+  kfree(&vaOut);
   //newPageAddress
   // mem=KALLOC for the new page
   mem=kalloc();
@@ -99,10 +102,10 @@ swap(struct proc *p,uint va){ //TODO: maybe swap to every method indevidually?
 //SELECTION=SCFIFO
 
 
-uint select_scfifo_swap(void){ //TODO: FIX!!!!! maya
+char *select_scfifo_swap(void){ //TODO: FIX!!!!! maya
   uint va_swap_out;
   int found=0;
-  pte_t *pte1;
+  //pte_t *pte1;
   //find first one that 
   for (int i = 0; i < MAX_PSYC_PAGES; i++){
     // if(checkPTE_A(myproc()->memoryPages[i].va)<0)
@@ -168,6 +171,7 @@ walkpgdir(pde_t *pgdir, const void *va, int alloc)
   }
   return &pgtab[PTX(va)];
 }
+
 
 // Create PTEs for virtual addresses starting at va that refer to
 // physical addresses starting at pa. va and size might not

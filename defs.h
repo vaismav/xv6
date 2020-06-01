@@ -76,6 +76,7 @@ void            ioapicinit(void);
 // kalloc.c
 char*           kalloc(void);
 void            kfree(char*);
+void            kfree2(char*);
 void            kinit1(void*, void*);
 void            kinit2(void*, void*);
 //OURS
@@ -203,10 +204,11 @@ void            switchkvm(void);
 int             copyout(pde_t*, uint, void*, uint);
 void            clearpteu(pde_t *pgdir, char *uva);
 //OURS
-int             swap(struct proc*, uint); //swap
+int             swap(struct proc*, char*); //swap
 pde_t*          cowuvm(pde_t*, uint);     //cow implmentation
 void            handle_write_fault(void);
-uint            select_scfifo_swap(void);
+char*           select_scfifo_swap(void);
+int             checkPTE_A(char *va);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))

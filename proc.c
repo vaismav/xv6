@@ -128,13 +128,13 @@ found:
   for (int i = 0; i < MAX_PSYC_PAGES; i++)
   {
     p->swapPages[i].is_occupied=0;
-    p->swapPages[i].va=0xffffffff; 
-    p->memoryPages[i].va=0xffffffff;
+    p->swapPages[i].va=(char*)0xffffffff; 
+    p->memoryPages[i].va=(char*)0xffffffff;
     p->memoryPages[i].prev=-1;
     p->memoryPages[i].next=-1;
     if(i==MAX_PSYC_PAGES-1){
       p->swapPages[i+1].is_occupied=0;
-      p->swapPages[i+1].va=0xffffffff; 
+      p->swapPages[i+1].va=(char*)0xffffffff; 
     }
   }
   p->pagesInMemory=0;
@@ -302,9 +302,9 @@ exit(void)
 
   //ADDED
   if(removeSwapFile(curproc)!=0)
-      return -1;
+      panic("proc.c: exit: couldnt remove swapFile");
   kfree(curproc->kstack);
-  //TODO: free all pages
+  //TODO: free all pages?
 
   begin_op();
   iput(curproc->cwd);
@@ -344,12 +344,12 @@ wait(void)
   //enitialize all
   for (int i = 0; i < MAX_PSYC_PAGES; i++)
   {
-    p->swapPages[i].is_occupied=0;
-    p->swapPages[i].va=0xffffffff; 
-    p->memoryPages[i].va=0xffffffff; 
+    curproc->swapPages[i].is_occupied=0;
+    curproc->swapPages[i].va=(char*)0xffffffff; 
+    curproc->memoryPages[i].va=(char*)0xffffffff; 
     if(i==MAX_PSYC_PAGES-1){
-      p->swapPages[i+1].is_occupied=0;
-      p->swapPages[i+1].va=0xffffffff; 
+      curproc->swapPages[i+1].is_occupied=0;
+      curproc->swapPages[i+1].va=(char*)0xffffffff; 
     }
   } 
   for(;;){

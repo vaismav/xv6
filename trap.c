@@ -36,6 +36,9 @@ idtinit(void)
 void
 trap(struct trapframe *tf)
 {
+  uint address; //address of faulty page
+  pte_t *pte; // virtual address of the page table in the second lvl
+  uint *pde; 
   if(tf->trapno == T_SYSCALL){
     if(myproc()->killed)
       exit();
@@ -82,9 +85,8 @@ trap(struct trapframe *tf)
   //2) not it pgdir - need to create
   //3) RO - first p try to write -> make writeable copy
   //        second p try to write -> make W and try writung again
-    uint address = rcr2();
-    pte_t *pte; // virtual address of the page table in the second lvl 
-    uint *pde = &myproc()->pgdir[PDX(address)];
+    address = rcr2();
+    pde = &myproc()->pgdir[PDX(address)];
     if (!((int)pde & PTE_P)){ //not in pgdir
       if ((int)pde & PTE_PG) { //in swapFile
         swap(myproc(),P2V_WO(address));
