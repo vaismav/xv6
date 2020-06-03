@@ -115,7 +115,8 @@ struct segdesc {
 #define PTE_PS          0x080   // Page Size
 #define PTE_MBZ         0x180   // Bits must be zero
 #define PTE_PG          0x200   // Paged out to secondary storage
-#define PTE_COW         0x800   //COW
+#define PTE_COW         0x800   // COW
+
 
 
 

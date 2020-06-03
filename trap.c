@@ -54,6 +54,7 @@ trap(struct trapframe *tf)
     if(cpuid() == 0){
       acquire(&tickslock);
       ticks++;
+      handle_aging_counter();
       wakeup(&ticks);
       release(&tickslock);
     }
@@ -89,7 +90,7 @@ trap(struct trapframe *tf)
     pde = &myproc()->pgdir[PDX(address)];
     if (!((int)pde & PTE_P)){ //not in pgdir
       if ((int)pde & PTE_PG) { //in swapFile
-        swap(myproc(),P2V_WO(address));
+        swap( myproc() , (char*)(address & GET_PGTAB_VA)); //mark GET_PGTAB_VA and hold ctrl for explaning
         break;  
       }
     }
@@ -110,7 +111,7 @@ trap(struct trapframe *tf)
       // check if the page in pte[DTX(address)] is present
       if (!((int)pte[PTX(address)] & PTE_P)){ //not in pgdir
         if ((int)pde & PTE_PG) { //in swapFile
-          swap(myproc(),P2V_WO(address));
+          swap(myproc(),(char*)(address & GET_PGTAB_VA));
           break;  
         }
       }

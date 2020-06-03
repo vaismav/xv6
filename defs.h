@@ -207,8 +207,12 @@ void            clearpteu(pde_t *pgdir, char *uva);
 int             swap(struct proc*, char*); //swap
 pde_t*          cowuvm(pde_t*, uint);     //cow implmentation
 void            handle_write_fault(void);
+char*           select_nfua_swap(void);
+char*           select_lapa_swap(void);
 char*           select_scfifo_swap(void);
+char*           select_aq_swap(void);
 int             checkPTE_A(char *va);
+void            handle_aging_counter(void);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))

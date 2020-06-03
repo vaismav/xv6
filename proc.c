@@ -132,6 +132,7 @@ found:
     p->memoryPages[i].va=(char*)0xffffffff;
     p->memoryPages[i].prev=-1;
     p->memoryPages[i].next=-1;
+    p->memoryPages[i].age=0;
     if(i==MAX_PSYC_PAGES-1){
       p->swapPages[i+1].is_occupied=0;
       p->swapPages[i+1].va=(char*)0xffffffff; 
@@ -139,6 +140,7 @@ found:
   }
   p->pagesInMemory=0;
   p->pagesInSwap=0;
+  p->startOfMemoryPages=0;
   
   
 
@@ -220,8 +222,8 @@ fork(void)
   }
 
   // Copy process state from proc.
-  //if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
-    if((np->pgdir = cowuvm(curproc->pgdir, curproc->sz)) == 0){
+  if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
+    //if((np->pgdir = cowuvm(curproc->pgdir, curproc->sz)) == 0){
     kfree(np->kstack);
     np->kstack = 0;
     np->state = UNUSED;
@@ -229,6 +231,7 @@ fork(void)
   }
   np->pagesInMemory=curproc->pagesInMemory;
   np->pagesInSwap=curproc->pagesInSwap;
+  np->startOfMemoryPages=curproc->startOfMemoryPages;
   np->sz = curproc->sz;
   np->parent = curproc;
   *np->tf = *curproc->tf;
@@ -263,6 +266,9 @@ fork(void)
     np->swapPages[i].is_occupied=curproc->swapPages[i].is_occupied;
     np->swapPages[i].va=curproc->swapPages[i].va; 
     np->memoryPages[i].va=curproc->memoryPages[i].va;
+    np->memoryPages[i].prev=curproc->memoryPages[i].prev;
+    np->memoryPages[i].next=curproc->memoryPages[i].next;
+    np->memoryPages[i].age=curproc->memoryPages[i].age;
     if(i==MAX_PSYC_PAGES-1){
       np->swapPages[i+1].is_occupied=curproc->swapPages[i].is_occupied;
       np->swapPages[i+1].va=curproc->swapPages[i].va; 

@@ -6,6 +6,7 @@
 #include "mmu.h"
 #include "proc.h"
 #include "elf.h"
+#include "limits.h"
 
 
 
@@ -14,14 +15,12 @@ pde_t *kpgdir;  // for use in scheduler()
 static int mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm);
 static pte_t *walkpgdir(pde_t *pgdir, const void *va, int alloc);
 
+
 #define NONE 0 //SCFIFO
 #define NFUA 1
 #define LAPA 2
 #define SCFIFO 3
 #define AQ 4
-
-
-
 
 //checks the refrence bit
 int checkPTE_A(char *va){
@@ -30,18 +29,127 @@ int checkPTE_A(char *va){
   if (!*pte)
     return -1;
   accessed = (*pte) & PTE_A;
-  if(accessed) //reset
-    (*pte) &= ~PTE_A;
+  (*pte) &= ~PTE_A;
   return accessed;
 }
+
+// this is a topic
+// what this function does?
+//  how it does that?
+// you know...
+void handle_aging_counter(){
+  #if SELECTION == NFUA || SELECTION == LAPA 
+    for (int i = 0; i < MAX_PSYC_PAGES; i++){
+      //not accessd - shift right by 1 bit
+      if(checkPTE_A(myproc()->memoryPages[i].va)==0){
+        myproc()->memoryPages[i].age= myproc()->memoryPages[i].age>>1;
+      }
+      //accessd - shift right by 1 bit & add 1 to msb
+      else if(checkPTE_A(myproc()->memoryPages[i].va)==1){
+        myproc()->memoryPages[i].age= myproc()->memoryPages[i].age>>1;
+        myproc()->memoryPages[i].age&=0x80000000; 
+      }
+    }
+    
+  #endif
+  #if SELECTION == AQ
+    //TODO:
+  #endif 
+}
+
+
+//SELECTION=NFUA
+char *select_nfua_swap(void){
+  uint va_swap_out;
+  int lowest_counterP=INT_MAX; //lowest age 
+  int page_index=0;
+
+  //find the page with the lowest counter
+  for (int i = 0; i < MAX_PSYC_PAGES; i++){
+   if(myproc()->memoryPages[i].age<lowest_counterP && myproc()->memoryPages[i].age>-1){
+    lowest_counterP=myproc()->memoryPages[i].age;
+    page_index=i;
+   }
+  }
+  va_swap_out=(uint)myproc()->memoryPages[page_index].va;
+  va_swap_out = va_swap_out & 0xFFFFF000;
+  return (char*)va_swap_out;
+}
+
+//SELECTION=LAPA
+char *select_lapa_swap(void){
+  uint va_swap_out;
+  int num_of_ones=INT_MAX;
+  int lowest_counterP=INT_MAX; //lowest age 
+  int page_index=0;
+  uint a=0;
+
+  //find the page w- lowest num of 1& if there are few, find the lowest age.
+  for (int i = 0; i < MAX_PSYC_PAGES; i++){
+    a = myproc()->memoryPages[i].age;
+    int num=0;
+    while (a){ //count num of 1
+      num += a & 1;
+      a = a >> 1;
+    }
+    if(num<num_of_ones){
+      num_of_ones=num;
+      lowest_counterP=myproc()->memoryPages[i].age;
+      page_index=i;    
+    }
+    else if(num==num_of_ones){ 
+      //find the one with smallest age
+      if(myproc()->memoryPages[i].age<lowest_counterP){
+        page_index=i;
+        lowest_counterP=myproc()->memoryPages[i].age;
+      }
+    }
+  }
+  va_swap_out= (uint)myproc()->memoryPages[page_index].va;
+  va_swap_out = va_swap_out & 0xFFFFF000;
+  return (char*)va_swap_out;
+}
+
+
+//SELECTION=SCFIFO
+//TODO: need to think how to update the next and prev with each enrty\deletion
+char *select_scfifo_swap(){
+  uint va_swap_out;
+  int found=0;
+  int i=myproc()->startOfMemoryPages;
+
+  //find first one with PTE_A=0
+  while (!found)
+  {
+   if(checkPTE_A(myproc()->memoryPages[i].va)==0){
+      va_swap_out=(uint)myproc()->memoryPages[i].va;
+      va_swap_out = va_swap_out & 0xFFFFF000;
+      found=1;
+   }
+   else{
+     i=myproc()->memoryPages[i].next;
+   }
+  }
+
+  return (char*)va_swap_out;
+}
+
+//SELECTION=AQ
+// char *select_aq_swap(void){
+//   uint va_swap_out;
+//   int found=0;
+//   //TODO: complete
+// }
+
+//SELECTION=NONE -> dont do anything
 
 // load a specific page from swapFile
 // return 0 on success, and -1 otherwise
 int
-swap(struct proc *p,char *va){ //TODO: maybe swap to every method indevidually?
-  uint vaOut; //va of page to swap out
+swap(struct proc *p,char *va){ 
+  char* vaOut; //va of page to swap out
   //int SELECTION =SCFIFO;
-  int i,stop,offsetIndex;
+  int i,offsetIndex;
   char *mem;
   //TODO: Choose page to swap out , Q : is the default scfifo \ fifo
   
@@ -64,7 +172,7 @@ swap(struct proc *p,char *va){ //TODO: maybe swap to every method indevidually?
     panic("swap couldnt find empty page in swap");
 
   //write vaOut data to swap page
-  if(writeToSwapFile(p,(char*)vaOut, PGSIZE*offsetIndex ,PGSIZE) < 0){
+  if(writeToSwapFile(p,vaOut, PGSIZE*offsetIndex ,PGSIZE) < 0){
     cprintf("failed to write page to swap\n");
     return -1;
   } else {
@@ -77,7 +185,7 @@ swap(struct proc *p,char *va){ //TODO: maybe swap to every method indevidually?
   lcr3(V2P(p->pgdir));
 
   //kfree(PYS_ADDRESS)
-  kfree(&vaOut);
+  kfree(vaOut);
   //newPageAddress
   // mem=KALLOC for the new page
   mem=kalloc();
@@ -87,6 +195,7 @@ swap(struct proc *p,char *va){ //TODO: maybe swap to every method indevidually?
   }
   //( p->pgdir[PDX(va)] )[PTX(va)] [20 MSB]<- V2P(mem)
   //TODO: is it right to use mappages?
+  cprintf("vm.c: swap: about to mappages with va %x\n",va);
   if(mappages(p->pgdir, (char*)va, PGSIZE, V2P(mem), PTE_W|PTE_U) < 0){
     cprintf("swap out of pysical memory (2)\n");
     kfree(mem);
@@ -96,32 +205,7 @@ swap(struct proc *p,char *va){ //TODO: maybe swap to every method indevidually?
   return 0;
 }
 
-//SELECTION=NFUA
-//SELECTION=LAPA
 
-//SELECTION=SCFIFO
-
-
-char *select_scfifo_swap(void){ //TODO: FIX!!!!! maya
-  uint va_swap_out;
-  int found=0;
-  //pte_t *pte1;
-  //find first one that 
-  for (int i = 0; i < MAX_PSYC_PAGES; i++){
-    // if(checkPTE_A(myproc()->memoryPages[i].va)<0)
-    //   panic("vm.c: select_fifo_swap: PTE_A out of bounds");
-    if(checkPTE_A(myproc()->memoryPages[i].va)==0){ //note that checkPTE_A also reset the flag 
-      if(found==0){
-        va_swap_out=myproc()->memoryPages[i].va;
-        found==1;
-      }
-    }
-  }
-  return va_swap_out; //found it!
-}
-
-//SELECTION=AQ
-//SELECTION=none
 
 
 // Set up CPU's kernel segment descriptors.
@@ -160,6 +244,11 @@ walkpgdir(pde_t *pgdir, const void *va, int alloc)
       panic("pde not in memory");
   }
   else {
+    //TODO: check if need to monitor. 
+    // if does, check if there arnt more 
+    // than 32 pages for the process , if there arent:
+    // check there is room in memory, otherwise alocate to swap.
+    // and than swap it in.
     if(!alloc || (pgtab = (pte_t*)kalloc()) == 0)
       return 0;
     // Make sure all those PTE_P bits are zero.
@@ -168,6 +257,8 @@ walkpgdir(pde_t *pgdir, const void *va, int alloc)
     // be further restricted by the permissions in the page table
     // entries, if necessary.
     *pde = V2P(pgtab) | PTE_P | PTE_W | PTE_U;
+
+    //
   }
   return &pgtab[PTX(va)];
 }
@@ -187,8 +278,10 @@ mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm)
   for(;;){
     if((pte = walkpgdir(pgdir, a, 1)) == 0)
       return -1;
-    if(*pte & PTE_P)
-      panic("remap");
+    if(*pte & PTE_P){
+      cprintf("vm.c: mappages: aboout to panic remap on %x\n",a);
+      // panic("remap");
+    }
     *pte = pa | perm | PTE_P;
     if(a == last)
       break;
@@ -245,12 +338,14 @@ setupkvm(void)
   memset(pgdir, 0, PGSIZE);
   if (P2V(PHYSTOP) > (void*)DEVSPACE)
     panic("PHYSTOP too high");
-  for(k = kmap; k < &kmap[NELEM(kmap)]; k++)
+  for(k = kmap; k < &kmap[NELEM(kmap)]; k++){
+    cprintf("vm.c: setupkvm: about to mappages with va %x\n",k->virt);
     if(mappages(pgdir, k->virt, k->phys_end - k->phys_start,
                 (uint)k->phys_start, k->perm) < 0) {
       freevm(pgdir);
       return 0;
     }
+  }
   return pgdir;
 }
 
@@ -308,6 +403,7 @@ inituvm(pde_t *pgdir, char *init, uint sz)
   // allocate page for the pgdir
   mem = kalloc();
   memset(mem, 0, PGSIZE);
+   cprintf("vm.c: inituvm: about to mappages with va 0x0\n");
   mappages(pgdir, 0, PGSIZE, V2P(mem), PTE_W|PTE_U);
   memmove(mem, init, sz);
 }
@@ -336,19 +432,57 @@ loaduvm(pde_t *pgdir, char *addr, struct inode *ip, uint offset, uint sz)
   return 0;
 }
 
+// gets a virtual page adrres and allocate 
+// it to indexInSwap in swap file.
+// turning on the PTE_PG flage in the pages table entry.
+// updating p->swapPages[indexInSwap] data.
+// initializing the page area in swap file with zeros
 int
-allocToSwap(struct proc* p, uint va){
-  pte_t *pde;
-  pte_t *pgtab;
+allocToSwap(struct proc* p, uint va, int indexInSwap){
+  pde_t *pde; //page directory entry pointer in the first lvl
+  pte_t *pte; //page table entry pointer in the first lvl
+  pte_t *pgtab; //virtual address of pagetable
+  int i;
+  int pageOffsetInSwap = PGSIZE*indexInSwap;
   // checks
   pde = &p->pgdir[PDX(va)];
   if(*pde & PTE_P){
     pgtab = (pte_t*)P2V(PTE_ADDR(*pde));
   }
   else if(*pde & PTE_PG){
-  //TODO: swap
+  // swap the page table to memory
+    if(swap(myproc(),(char*)(va & 0xFFC00000)) !=0 ) 
+      panic("vm.c: allocToSwap: failed to swap page table");
+    pgtab = (pte_t*)P2V(PTE_ADDR(*pde));
+  }
+  else {
+    //TODO: update mappages for adding page table when 16 pages are in swap
+    cprintf("vm.c: allocToSw: about to mappages with va %x\n",va);
+    if(mappages(p->pgdir, (void*)va, PGSIZE, 0, PTE_PG|PTE_W|PTE_U) < 0){
+      
+      panic("vm.c: allocToSwap: va page table is not present nor swapped");
+    }
+    pgtab=0; //for the compiler..... will never be used
   }
 
+  // by now, pgtab is defined or we got into panic. AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+  pte= &pgtab[PTX(va)];
+  // flaging that the page is in swap and regular flags
+  *pte = PTE_PG|PTE_W|PTE_U;
+  
+  // setting swap page as occupied
+  p->swapPages[indexInSwap].is_occupied=1;
+  // setting the co-responding virtual address (a=address) of the page
+  p->swapPages[indexInSwap].va= (char*)(va & 0xFFFFF000); //[10][10][12 =0x0] virtual address of the first byte in the page
+  //  initializing the swap area
+  char buffer[4]= {0,0,0,0};
+  char *buffptr=buffer;
+  for(i=0 ; i < PGSIZE ; i+=4){
+    if(writeToSwapFile(p, buffptr, pageOffsetInSwap + i ,4) < 0)
+      panic("vm.c: allocToSwap: faild to initialize page in swap with 0s");
+  }
+
+  return 0;
 }
 
 // Allocate page tables and physical memory to grow process from oldsz to
@@ -358,14 +492,14 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 {
   char *mem;
   uint a;
-
+  struct proc* p=myproc();
   if(newsz >= KERNBASE)
     return 0;
   if(newsz < oldsz)
     return oldsz;
 
   a = PGROUNDUP(oldsz);
-  for(; a < newsz && a < MAX_PSYC_PAGES*PGSIZE ; a += PGSIZE){
+  for(; a < newsz && ( (p==0 || p->pid <= 2) || a < MAX_PSYC_PAGES*PGSIZE )  ; a += PGSIZE){
     mem = kalloc();
     if(mem == 0){
       cprintf("allocuvm out of memory\n");
@@ -373,6 +507,7 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       return 0;
     }
     memset(mem, 0, PGSIZE);
+    cprintf("vm.c: allocuvm: about to mappages with va %x\n",a);
     if(mappages(pgdir, (char*)a, PGSIZE, V2P(mem), PTE_W|PTE_U) < 0){
       cprintf("allocuvm out of memory (2)\n");
       deallocuvm(pgdir, newsz, oldsz);
@@ -380,27 +515,30 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       return 0;
     }
   }
+  //ifthis is the init or shell proc
+  if(p==0 || p->pid <= 2)
+    return newsz;
 
   // allocating pages in swapFile
-  struct proc* p=myproc();
+  
   
   int i,foundFreePage;
-
-  for(; a < newsz && a < MAX_TOTAL_PAGES*PGSIZE ; a += PGSIZE){
+  
+  for(; a < newsz && (a < MAX_TOTAL_PAGES*PGSIZE) ; a += PGSIZE){
     i=0;
     foundFreePage = 0;
     // scaning p->swapPages_e[] for Unused pages in swapFile
     for(; i < 17 && !foundFreePage; i++){
       if( !p->swapPages[i].is_occupied ){
         foundFreePage = 1;
-        // setting swap page as occupied
-        p->swapPages[i].is_occupied=1;
-        // setting the co-responding virtual address (a=address) of the page
-        p->swapPages[i].va=a; //[10][10][12 =0x0]
-        allocToSwap(p,p->swapPages[i].va); //TODO: need to complete?
+        // allocate the space for the page in the swap file
+        // and update the coresponding page table entry flags
+        allocToSwap(p,(uint)p->swapPages[i].va,i); //TODO: need to complete?
         
       }
     }
+    if(!foundFreePage)
+      panic("vm.c: allocuvm: couldnt find empty slot in swap file ");
   }
   return newsz;
 }
@@ -479,7 +617,6 @@ cowuvm(pde_t *pgdir, uint sz)
   pde_t *d;
   pte_t *pte;
   uint pa, i, flags;
-  char *mem;
 
   if((d = setupkvm()) == 0)
     return 0;
@@ -497,11 +634,13 @@ cowuvm(pde_t *pgdir, uint sz)
     
     // if((mem = kalloc()) == 0)
     //   goto bad;
-    // memmove(mem, (char*)P2V(pa), PGSIZE);
-    if(mappages(d, (void*)i, PGSIZE, V2P(mem), flags) < 0) {
-    // kfree(mem);
+    //memmove(mem, (char*)P2V(pa), PGSIZE);
+    cprintf("vm.c: cowuvm: about to mappages with va %x\n",i);
+    if(mappages(d, (void*)i, PGSIZE, pa, flags) < 0) 
       goto bad;
-    }
+    
+    char *v=P2V(pa);
+    kinc(v);
   }
   return d;
 
@@ -592,6 +731,7 @@ copyuvm(pde_t *pgdir, uint sz)
     if((mem = kalloc()) == 0)
       goto bad;
     memmove(mem, (char*)P2V(pa), PGSIZE);
+    cprintf("vm.c: copyuvm: about to mappages with va %x\n",i);
     if(mappages(d, (void*)i, PGSIZE, V2P(mem), flags) < 0) {
       kfree(mem);
       goto bad;
