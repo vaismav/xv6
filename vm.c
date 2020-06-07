@@ -16,6 +16,7 @@ walkpgdir(pde_t *pgdir, const void *va, int alloc);
 // gets a proc p and an virtual addres of page. 
 // Findes the va index in p->memoryPages
 // and remove it from the list
+// and decrese pagesInMemory ccounter
 int
 removePageFromMemory(struct proc* p,uint va){
   int index =-1;
@@ -227,7 +228,8 @@ swap(){
 
   //free the page on the pysic space
   kfree(P2V(PTE_ADDR(*pte)));
-
+  //refresh RC3 (TLB)
+  lcr3(V2P(p->pgdir));
   //remove from p->memoryPages[]
   removePageFromMemory(p,indexInMemoryPages);
   
