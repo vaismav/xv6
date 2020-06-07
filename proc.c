@@ -126,19 +126,22 @@ found:
     for (int i = 0; i < MAX_PSYC_PAGES; i++)
     {
       p->swapPages[i].is_occupied=0;
-      p->swapPages[i].va=(char*)0xffffffff; 
-      p->memoryPages[i].va=(char*)0xffffffff;
+      p->swapPages[i].va=0; 
+      p->memoryPages[i].va=0;
       p->memoryPages[i].prev=-1;
       p->memoryPages[i].next=-1;
       p->memoryPages[i].age=0;
+      p->memoryPages[i].is_occupied=0;
       if(i==MAX_PSYC_PAGES-1){
         p->swapPages[i+1].is_occupied=0;
-        p->swapPages[i+1].va=(char*)0xffffffff; 
+        p->swapPages[i+1].va=0; 
       }
     }
     p->pagesInMemory=0;
     p->pagesInSwap=0;
-    p->headOfMemoryPages=0;
+    // we use -1 to know the queue is empty
+    p->headOfMemoryPages=-1;
+    p->tailOfMemoryPages=-1;
   }
 
   return p;
@@ -225,6 +228,8 @@ fork(void)
     np->state = UNUSED;
     return -1;
   }
+  //copy the pages in memorry array
+  // TODO:
   np->sz = curproc->sz;
   np->parent = curproc;
   *np->tf = *curproc->tf;

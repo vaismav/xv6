@@ -37,22 +37,23 @@ enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 struct memoryPages_e{ 
   // struct pagesSwap* next;     //next page
   // struct pagesSwap* prev;     //prev page
-  char *va;                       //virtual address [10][10][12= 0x0] va & 0x[F]FFFF000     [1111]
+  uint va;                       //virtual address [10][10][12= 0x0] va & 0x[F]FFFF000     [1111]
   int prev;
   int next;  
   uint age; 
+  char  is_occupied;
   //uint pgdir;                    //the pgdir of the page TODO:
 };
 
 struct swap_e{
   char  is_occupied;
-  char *va;
+  uint va;
 };
 
 struct freePages{ 
   struct freePages *prev;
   struct freePages *next;
-  char *va;
+  uint va;
 
 };
 
@@ -80,6 +81,7 @@ struct proc {
   struct memoryPages_e memoryPages[MAX_PSYC_PAGES];  //pages in physical memory
   struct swap_e swapPages[17];           //pages in swap file
   int headOfMemoryPages;
+  int tailOfMemoryPages;
 
 
 };

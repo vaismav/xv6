@@ -10,6 +10,147 @@
 extern char data[];  // defined by kernel.ld
 pde_t *kpgdir;  // for use in scheduler()
 
+static pte_t *
+walkpgdir(pde_t *pgdir, const void *va, int alloc);
+
+// gets a proc p and an virtual addres of page. 
+// Findes the va index in p->memoryPages
+// and remove it from the list
+int
+removePageFromMemory(struct proc* p,uint va){
+  int index =-1;
+  int i=0;
+  uint cleanVA = va & ~0xFFF;
+  cprintf("vm.c: removePageFromMemory: cleanVA =0x%x\n",cleanVA);
+
+  //find the index of va in p->memoryPages
+  for(; i<MAX_PSYC_PAGES && index < 0 ;i++){
+    if(p->memoryPages[i].is_occupied == 1 && p->memoryPages[i].va == cleanVA){
+      index = i;
+    }
+  }
+  if(index < 0){
+    cprintf("vm.c: removePageFromMemory: PID %d: couldnt find va 0x%x in p->memoryPages\n",p->pid,cleanVA);
+    return -1;
+  }
+  // if index is the only node in the list
+  if(p->headOfMemoryPages == index && p->tailOfMemoryPages == index){
+    p->headOfMemoryPages = -1;
+    p->tailOfMemoryPages = -1;
+  }
+  // if the index is the head of the list (and not the only node in the list)
+  else if(p->headOfMemoryPages == index){
+    p->headOfMemoryPages = p->memoryPages[index].next;
+    p->memoryPages[p->headOfMemoryPages].prev = -1;
+  }
+  // if the index is the the last on the list (and not the only node in the list)
+  else if(p->tailOfMemoryPages == index){
+    p->tailOfMemoryPages = p->memoryPages[index].prev;
+    p->memoryPages[p->tailOfMemoryPages].next = -1;
+  }
+  // if the index is in the middle of the list
+  else{
+    int prev = p->memoryPages[index].prev;
+    int next = p->memoryPages[index].next;
+    p->memoryPages[prev].next=next;
+    p->memoryPages[next].prev=prev;
+  }
+
+  //clear the p->memoryPage entry
+  p->memoryPages[index].next = -1;
+  p->memoryPages[index].prev = -1;
+  p->memoryPages[index].va = 0;
+  p->memoryPages[index].age = 0;
+  p->memoryPages[index].is_occupied = 0;
+
+  p->pagesInMemory --;
+
+  return 0;
+}
+
+// gets process and a virtual address of page with valid
+// pysic address, find empty slot in and p->memoryPages[], 
+// and push it to p->memoryPages
+// Return -1 if error eccured
+int 
+pushToMemoryPagesArray(struct proc* p, uint va){
+  int index =-1;
+  int i=0;
+  // find empty slot in 
+  for(; i < MAX_PSYC_PAGES && index < 0 ; i++){
+    //check if the slot va is already addressing a page
+    if(p->memoryPages[i].is_occupied == 0){
+      index = i;
+      p->memoryPages[i].is_occupied =1;
+    }
+  }
+  if(index < 0){
+    cprintf("vm.c: pushToMemoryPagesArray: couldnt find empty slot in the memoryPages Array\n");
+    return -1;
+  }
+
+  //pushing the page to the end of the array
+
+  p->memoryPages[index].prev = p->tailOfMemoryPages; // if the queue was empty than  p->tailOfMemoryPages = -1 and its fine.
+  p->memoryPages[index].next = -1;
+
+  //if queue was empty
+  if(p->headOfMemoryPages == -1){
+    //setting the head index
+    p->headOfMemoryPages= index;
+  }
+  //if queue wasnt empty
+  else{
+    //last tail is pointing to new tail
+    p->memoryPages[p->tailOfMemoryPages].next = index;
+  }
+
+  //setting the tail index
+  p->tailOfMemoryPages=index;
+
+
+  // updating the page virtual address
+  p->memoryPages[index].va = va;
+  // updating the page age
+  p->memoryPages[index].age = 0; //TODO: ask maya
+  
+  return 0;
+}
+
+// gets index in p->swapPages
+// Delete the page content in the swapfile,
+// clear p->swapPages[index], 
+// and decrease the pagesInSwap counter
+void
+deleteFromSwap(int index){
+  struct proc* p=myproc();
+  char buffer[]={0,0,0,0};
+  char *bufPtr=buffer;
+  int a=0;
+  // the p->swapPages is organized by the order of the pages in the swapfile
+  int pageOffsetInSwapFile = index*PGSIZE;
+
+  // write 4 chars of zero at a time
+  for(; a < PGSIZE ; a+=4){
+    if(writeToSwapFile(p,bufPtr, pageOffsetInSwapFile + a,4) < 0){
+      cprintf("vm.c: deleteFromSwap: failed to initilize the 4 byte at offset %d in page %d in swapFile\n",a,index);
+    }
+  }
+  // clearing p->swapPages[index]
+  p->swapPages[index].va=0;
+  p->swapPages[index].is_occupied = 0;
+  p->pagesInSwap--;
+}
+
+// return the index of the page related with va 
+// in p->swapPages
+// Return -1 upon failuer.
+int
+findInSwap(uint va){
+  //TODO:
+  return -1;
+}
+
 // checks if p is valid user process for the paging system
 // returns 0 if (p == 0 || p->pid <= 2 ) and 1 if p->pid > 2
 int
@@ -30,9 +171,16 @@ selectPageToSwap(){
 
 // find empty slot in the swapped pages array and Return it's index
 int
-getEmptyPageInSwap(struct swap_e *swapPages){
-  //TODO:
-  return -1;
+findEmptyPageInSwap(struct proc *p){
+  int i=0;
+  int index = -1;
+  for( ; i < MAX_SWAP_PAGES && index < 0 ; i++){
+    if(p->swapPages[i].is_occupied == 0){
+      index = i;
+      p->swapPages[i].is_occupied = 1;
+    }
+  }
+  return index;
 }
 
 // swap 1 page to swapfile.
@@ -43,28 +191,49 @@ int
 swap(){
   struct proc* p = myproc(); //only valid process calls swap() so p is valid
   int indexInMemoryPages,indexInSwapPages;
+  pte_t *pte;
 
   //check if swap is not full
   if(!(p->pagesInSwap < MAX_SWAP_PAGES)){
-    cprintf("vm.c: swap: PID %d: pages in swap >= 17, p->pagesInSwap = %d",p->pagesInSwap);
+    cprintf("vm.c: swap: PID %d: pages in swap >= 17, p->pagesInSwap = %d",p->pid,p->pagesInSwap);
     return -1;
   }
   //select page to swap out
   indexInMemoryPages=selectPageToSwap();
   if(indexInMemoryPages < 0){
-    cprintf("vm.c: swap: PID %d: invalid indexInMemoryPages = %d",indexInMemoryPages);
+    cprintf("vm.c: swap: PID %d: invalid indexInMemoryPages = %d",p->pid,indexInMemoryPages);
     return -1;
   }
   //find empty slot in swap
-  indexInSwapPages=getEmptyPageInSwap(p->swapPages);
+  indexInSwapPages=findEmptyPageInSwap(p);
   if(indexInSwapPages < 0){
-    cprintf("vm.c: swap: PID %d: invalid indexInSwapPages = %d",indexInSwapPages);
+    cprintf("vm.c: swap: PID %d: invalid indexInSwapPages = %d",p->pid,indexInSwapPages);
     return -1;
   }
   
+  // copy page data to swapFile
+  writeToSwapFile(p, (char*)p->memoryPages[indexInMemoryPages].va, indexInSwapPages*PGSIZE, PGSIZE);
+  
+  //update pte flags
+  pte=walkpgdir(p->pgdir, (void*)p->memoryPages[indexInMemoryPages].va, 0);
+  if(pte == 0){
+    cprintf("vm.c: swap: PID %d: invalid indexInSwapPages = %d",indexInSwapPages);
+    return -1;  
+  }
+  // Turinig on the PGfault flag
+  *pte |= PTE_PG;
+  // Clearing the PTE_P flag
+  *pte &= ~PTE_P;
+
+  //free the page on the pysic space
+  kfree(P2V(PTE_ADDR(*pte)));
+
+  //remove from p->memoryPages[]
+  removePageFromMemory(p,indexInMemoryPages);
   
   return 0;
 }
+
 // Set up CPU's kernel segment descriptors.
 // Run once on entry on each CPU.
 void
@@ -283,7 +452,7 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
     return 0;
   if(newsz < oldsz)
     return oldsz;
-
+  
   a = PGROUNDUP(oldsz);
   for(; a < newsz ; a += PGSIZE){
     // the section inside the if
@@ -312,8 +481,9 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
     mem = kalloc();
     //checks if p is initialized
     // if it does, increase the pages count of the process
-    if(p != 0) p->pagesInMemory++;
-
+    // we do it here because de
+    
+    
     if(mem == 0){
       cprintf("allocuvm out of memory\n");
       deallocuvm(pgdir, newsz, oldsz);
@@ -325,6 +495,16 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       deallocuvm(pgdir, newsz, oldsz);
       kfree(mem);
       return 0;
+    }
+     //if successfuly allocat the page and p-Pid > 2 update the coresponding entry
+    if(isValidUserProc(p)){
+      if(pushToMemoryPagesArray(p,a) <0 ){
+      panic("vm.c: allocuvm: failed to push page to memory pages array");
+      }
+    }
+    // update the proc page counter.
+    if(p != 0){
+       p->pagesInMemory++;
     }
   }
   return newsz;
@@ -355,9 +535,22 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       char *v = P2V(pa);
       kfree(v);
       //decrease the pages count if p is initialized
-      if(p != 0)
+      // and the page is present
+      if(isValidUserProc(p))
+        removePageFromMemory(p,a);
+      else if(p != 0)
         p->pagesInMemory--;
       *pte = 0;
+    }
+    // checks if the page is in swap
+    else if((*pte & PTE_PG)){
+      // if the page is in swap clear the swap
+      int index = findInSwap(a);
+      if(index < 0)
+        cprintf("vm.c: deallocuvm: PTE_P is off, PTE_PG is on but couldnt find page in p->swapPages.\n");
+      else{
+        deleteFromSwap(index);
+      }
     }
   }
   return newsz;
