@@ -33,7 +33,6 @@ struct context {
 };
 
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
-
 //To know which pages are in the process' swap file and where they are located in that file
 struct memoryPages_e{ 
   // struct pagesSwap* next;     //next page
@@ -80,7 +79,7 @@ struct proc {
   int pagesInSwap;                        //pages in swap
   struct memoryPages_e memoryPages[MAX_PSYC_PAGES];  //pages in physical memory
   struct swap_e swapPages[17];           //pages in swap file
-  int startOfMemoryPages;
+  int headOfMemoryPages;
 
 
 };

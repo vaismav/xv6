@@ -99,14 +99,8 @@ exec(char *path, char **argv)
   curproc->sz = sz;
   curproc->tf->eip = elf.entry;  // main
   curproc->tf->esp = sp;
-  /////added
-  removeSwapFile(curproc);
-  createSwapFile(curproc);
-  /////
   switchuvm(curproc);
   freevm(oldpgdir);
-
-  
   return 0;
 
  bad:
@@ -116,7 +110,5 @@ exec(char *path, char **argv)
     iunlockput(ip);
     end_op();
   }
-  //before end - restore the pagesNUm
-
   return -1;
 }

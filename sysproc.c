@@ -7,14 +7,6 @@
 #include "mmu.h"
 #include "proc.h"
 
-
-int
-sys_getNumberOfFreePages(void)
-{
-  return getNumberOfFreePages();
-}
-
-
 int
 sys_fork(void)
 {

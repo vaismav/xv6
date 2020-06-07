@@ -76,15 +76,8 @@ void            ioapicinit(void);
 // kalloc.c
 char*           kalloc(void);
 void            kfree(char*);
-void            kfree2(char*);
 void            kinit1(void*, void*);
 void            kinit2(void*, void*);
-//OURS
-int             count_free_pages(void);
-void            kinc(char*);
-void            kdec(char*);
-int             getRefs(char*);
-
 
 // kbd.c
 void            kbdintr(void);
@@ -137,7 +130,6 @@ void            userinit(void);
 int             wait(void);
 void            wakeup(void*);
 void            yield(void);
-int             getNumberOfFreePages(void); //ours for cow testing
 
 // swtch.S
 void            swtch(struct context**, struct context*);
@@ -203,16 +195,6 @@ void            switchuvm(struct proc*);
 void            switchkvm(void);
 int             copyout(pde_t*, uint, void*, uint);
 void            clearpteu(pde_t *pgdir, char *uva);
-//OURS
-int             swap(struct proc*, char*); //swap
-pde_t*          cowuvm(pde_t*, uint);     //cow implmentation
-void            handle_write_fault(void);
-char*           select_nfua_swap(void);
-char*           select_lapa_swap(void);
-char*           select_scfifo_swap(void);
-char*           select_aq_swap(void);
-int             checkPTE_A(char *va);
-void            handle_aging_counter(void);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))

@@ -20,12 +20,6 @@ extern void trapret(void);
 
 static void wakeup1(void *chan);
 
-int
-getNumberOfFreePages(void)
-{
-  return count_free_pages();
-}
-
 void
 pinit(void)
 {
@@ -118,31 +112,34 @@ found:
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
 
-  // initializing swapFile
-  // upon failure free kstack and return 0
-  if(createSwapFile(p)!=0){
-    kfree(p->kstack);
-    return 0;
-  }
+  // Initialize all the paging structs
 
-  for (int i = 0; i < MAX_PSYC_PAGES; i++)
-  {
-    p->swapPages[i].is_occupied=0;
-    p->swapPages[i].va=(char*)0xffffffff; 
-    p->memoryPages[i].va=(char*)0xffffffff;
-    p->memoryPages[i].prev=-1;
-    p->memoryPages[i].next=-1;
-    p->memoryPages[i].age=0;
-    if(i==MAX_PSYC_PAGES-1){
-      p->swapPages[i+1].is_occupied=0;
-      p->swapPages[i+1].va=(char*)0xffffffff; 
+  // initialze for every proc which is not 1 or 2
+  if(p->pid > 2){
+    // initializing swapFile
+    // upon failure free kstack and return 0
+    if(createSwapFile(p)!=0){
+      kfree(p->kstack);
+      return 0;
     }
+
+    for (int i = 0; i < MAX_PSYC_PAGES; i++)
+    {
+      p->swapPages[i].is_occupied=0;
+      p->swapPages[i].va=(char*)0xffffffff; 
+      p->memoryPages[i].va=(char*)0xffffffff;
+      p->memoryPages[i].prev=-1;
+      p->memoryPages[i].next=-1;
+      p->memoryPages[i].age=0;
+      if(i==MAX_PSYC_PAGES-1){
+        p->swapPages[i+1].is_occupied=0;
+        p->swapPages[i+1].va=(char*)0xffffffff; 
+      }
+    }
+    p->pagesInMemory=0;
+    p->pagesInSwap=0;
+    p->headOfMemoryPages=0;
   }
-  p->pagesInMemory=0;
-  p->pagesInSwap=0;
-  p->startOfMemoryPages=0;
-  
-  
 
   return p;
 }
@@ -223,15 +220,11 @@ fork(void)
 
   // Copy process state from proc.
   if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
-    //if((np->pgdir = cowuvm(curproc->pgdir, curproc->sz)) == 0){
     kfree(np->kstack);
     np->kstack = 0;
     np->state = UNUSED;
     return -1;
   }
-  np->pagesInMemory=curproc->pagesInMemory;
-  np->pagesInSwap=curproc->pagesInSwap;
-  np->startOfMemoryPages=curproc->startOfMemoryPages;
   np->sz = curproc->sz;
   np->parent = curproc;
   *np->tf = *curproc->tf;
@@ -247,34 +240,6 @@ fork(void)
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
 
   pid = np->pid;
-
-  //the swapFile of child is like the swapFile of parent
-  char buffer[PGSIZE]=""; 
-  int numRead=0;
-  int placeOnFile=0;
-  while((numRead=readFromSwapFile(curproc,buffer,placeOnFile,sizeof(buffer)))){ //have something to read
-  if(np->pid>2){
-    if(writeToSwapFile(np,buffer,placeOnFile,numRead)==-1) 
-      return -1;
-    placeOnFile+=numRead;
-    } 
-  }
-
-  //duplicate the process
-  for (int i = 0; i < MAX_PSYC_PAGES; i++)
-  {
-    np->swapPages[i].is_occupied=curproc->swapPages[i].is_occupied;
-    np->swapPages[i].va=curproc->swapPages[i].va; 
-    np->memoryPages[i].va=curproc->memoryPages[i].va;
-    np->memoryPages[i].prev=curproc->memoryPages[i].prev;
-    np->memoryPages[i].next=curproc->memoryPages[i].next;
-    np->memoryPages[i].age=curproc->memoryPages[i].age;
-    if(i==MAX_PSYC_PAGES-1){
-      np->swapPages[i+1].is_occupied=curproc->swapPages[i].is_occupied;
-      np->swapPages[i+1].va=curproc->swapPages[i].va; 
-    }
-  }
-  
 
   acquire(&ptable.lock);
 
@@ -297,7 +262,8 @@ exit(void)
 
   if(curproc == initproc)
     panic("init exiting");
-
+  //closeing swapfile
+  removeSwapFile(curproc);
   // Close all open files.
   for(fd = 0; fd < NOFILE; fd++){
     if(curproc->ofile[fd]){
@@ -305,12 +271,6 @@ exit(void)
       curproc->ofile[fd] = 0;
     }
   }
-
-  //ADDED
-  if(removeSwapFile(curproc)!=0)
-      panic("proc.c: exit: couldnt remove swapFile");
-  kfree(curproc->kstack);
-  //TODO: free all pages?
 
   begin_op();
   iput(curproc->cwd);
@@ -347,17 +307,6 @@ wait(void)
   struct proc *curproc = myproc();
   
   acquire(&ptable.lock);
-  //enitialize all
-  for (int i = 0; i < MAX_PSYC_PAGES; i++)
-  {
-    curproc->swapPages[i].is_occupied=0;
-    curproc->swapPages[i].va=(char*)0xffffffff; 
-    curproc->memoryPages[i].va=(char*)0xffffffff; 
-    if(i==MAX_PSYC_PAGES-1){
-      curproc->swapPages[i+1].is_occupied=0;
-      curproc->swapPages[i+1].va=(char*)0xffffffff; 
-    }
-  } 
   for(;;){
     // Scan through table looking for exited children.
     havekids = 0;
