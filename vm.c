@@ -140,6 +140,7 @@ deleteFromSwap(int index){
   // clearing p->swapPages[index]
   p->swapPages[index].va=0;
   p->swapPages[index].is_occupied = 0;
+
   p->pagesInSwap--;
 }
 
@@ -147,9 +148,16 @@ deleteFromSwap(int index){
 // in p->swapPages
 // Return -1 upon failuer.
 int
-findInSwap(uint va){
-  //TODO:
-  return -1;
+findInSwap(struct proc* p,uint va){
+  int index = -1;
+  int i = 0;
+  uint cleanVA = va & ~0xFFF;// the va to the first byte in the page
+
+  for( ; i < MAX_SWAP_PAGES && index < 0 ; i++){
+    if(p->swapPages[i].is_occupied && p->swapPages[i].va == cleanVA)
+      index = i;
+  }
+  return index;
 }
 
 // checks if p is valid user process for the paging system
@@ -189,8 +197,8 @@ findEmptyPageInSwap(struct proc *p){
 // the page to swap is selected by the SELECT
 // swap algorithem.
 int
-swap(){
-  struct proc* p = myproc(); //only valid process calls swap() so p is valid
+swapOut(){
+  struct proc* p = myproc(); //only valid process calls swapOut() so p is valid
   int indexInMemoryPages,indexInSwapPages;
   pte_t *pte;
 
@@ -465,7 +473,7 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       if(p->pagesInMemory == MAX_PSYC_PAGES){
         cprintf("vm.c: allocuvm: PID %d 16 pages in memory, swaping one page out\n");
         //swap out 1 page to free space for the new one
-        if(swap() == -1){
+        if(swapOut() == -1){
           // if swap failed, act as the all allocuvm failed.
           cprintf("vm.c: allocuvm: failed to swap page out of PID:%d\n",p->pid);
           deallocuvm(pgdir, newsz, oldsz);
@@ -547,7 +555,7 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
     // checks if the page is in swap
     else if((*pte & PTE_PG)){
       // if the page is in swap clear the swap
-      int index = findInSwap(a);
+      int index = findInSwap(p,a);
       if(index < 0)
         cprintf("vm.c: deallocuvm: PTE_P is off, PTE_PG is on but couldnt find page in p->swapPages.\n");
       else{
