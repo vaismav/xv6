@@ -133,7 +133,7 @@ removePageFromMemory(struct proc* p,uint va){
   int index =-1;
   int i=0;
   uint cleanVA = va & ~0xFFF;
-  cprintf("vm.c: removePageFromMemory: cleanVA =0x%x\n",cleanVA);
+  if( 0 ) cprintf("vm.c: removePageFromMemory:va = 0x%x cleanVA =0x%x\n",va,cleanVA);
 
   //find the index of va in p->memoryPages
   for(; i<MAX_PSYC_PAGES && index < 0 ;i++){
@@ -625,9 +625,11 @@ loaduvm(pde_t *pgdir, char *addr, struct inode *ip, uint offset, uint sz)
 int
 allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 {
+  
   char *mem;
   uint a;
   struct proc* p=myproc();
+  if( 1 && isValidUserProc(p) ) cprintf("vm.c: allocuvm: PID %d enter allocuvm\n",p->pid);
   if(newsz >= KERNBASE)
     return 0;
   if(newsz < oldsz)
@@ -638,7 +640,7 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
     // the section inside the if
     // doesnt apply on kernal and PID <= 2
     if(isValidUserProc(p)){
-      cprintf("vm.c: allocuvm: PID %d is valid, checking for num of pages in memory\n",p->pid);
+      if( 0 ) cprintf("vm.c: allocuvm: PID %d is valid, checking for num of pages in memory\n",p->pid);
       //checks if there are already 16 pages in pysc memory
       if(p->pagesInMemory == MAX_PSYC_PAGES){
         cprintf("vm.c: allocuvm: PID %d 16 pages in memory, swaping one page out\n");
@@ -685,7 +687,9 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
     // update the proc page counter.
     if(p != 0){
        p->pagesInMemory++;
+       if(1) cprintf("vm.c: allocuvm: PID %d added page(0x%x) to memory, pages in memory=%d\n",p->pid,a,p->pagesInMemory);
     }
+    
   }
   return newsz;
 }
