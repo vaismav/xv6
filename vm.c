@@ -176,6 +176,8 @@ removePageFromMemory(struct proc* p,uint va){
   p->memoryPages[index].is_occupied = 0;
 
   p->pagesInMemory --;
+  if(1) cprintf("vm.c: removePageFromMemory: PID %d removed page(0x%x) from memory, pages in memory=%d\n",p->pid,va,p->pagesInMemory);
+
 
   return 0;
 }
@@ -704,6 +706,8 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
   pte_t *pte;
   uint a, pa;
   struct proc* p =myproc();
+  if(1 && p != 0) cprintf("vm.c: deallocuvm: PID %d enter deallocuvm, pages in memory=%d\n",p->pid,p->pagesInMemory);
+
   if(newsz >= oldsz)
     return oldsz;
 
@@ -722,8 +726,10 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       // and the page is present
       if(isValidUserProc(p))
         removePageFromMemory(p,a);
-      else if(p != 0)
+      else if(p != 0){
         p->pagesInMemory--;
+        if(1) cprintf("vm.c: deallocuvm: PID %d removed page(0x%x) from memory, pages in memory=%d\n",p->pid,a,p->pagesInMemory);
+      }
       *pte = 0;
     }
     // checks if the page is in swap
@@ -751,6 +757,7 @@ freevm(pde_t *pgdir)
 
   if(pgdir == 0)
     panic("freevm: no pgdir");
+  if(1) cprintf("vm.c: freevm: PID %d about to deallocuvm \n",myproc()->pid);
   deallocuvm(pgdir, KERNBASE, 0);
   for(i = 0; i < NPDENTRIES; i++){
     if(pgdir[i] & PTE_P){

@@ -52,6 +52,7 @@ exec(char *path, char **argv)
       goto bad;
     if(ph.vaddr + ph.memsz < ph.vaddr)
       goto bad;
+    if(1) cprintf("exec.c: Load program into memory: PID %d about to sz = allocuvm ,  current pages in memory=%d\n",curproc->pid,curproc->pagesInMemory);
     if((sz = allocuvm(pgdir, sz, ph.vaddr + ph.memsz)) == 0)
       goto bad;
     if(ph.vaddr % PGSIZE != 0)
@@ -66,6 +67,8 @@ exec(char *path, char **argv)
   // Allocate two pages at the next page boundary.
   // Make the first inaccessible.  Use the second as the user stack.
   sz = PGROUNDUP(sz);
+  if(1) cprintf("exec.c: Allocate two pages at the next page boundary: PID %d about to sz = allocuvm ,  current pages in memory=%d\n",curproc->pid,curproc->pagesInMemory);
+
   if((sz = allocuvm(pgdir, sz, sz + 2*PGSIZE)) == 0)
     goto bad;
   clearpteu(pgdir, (char*)(sz - 2*PGSIZE));
@@ -206,6 +209,7 @@ exec(char *path, char **argv)
       goto bad;
     if(ph.vaddr + ph.memsz < ph.vaddr)
       goto bad;
+    if(1) cprintf("exec.c: Load program into memory: PID %d about to sz = allocuvm ,  current pages in memory=%d\n",curproc->pid,curproc->pagesInMemory);
     if((sz = allocuvm(pgdir, sz, ph.vaddr + ph.memsz)) == 0)
       goto bad;
     if(ph.vaddr % PGSIZE != 0)
@@ -220,6 +224,8 @@ exec(char *path, char **argv)
   // Allocate two pages at the next page boundary.
   // Make the first inaccessible.  Use the second as the user stack.
   sz = PGROUNDUP(sz);
+if(1) cprintf("exec.c: Allocate two pages at the next page boundary: PID %d about to sz = allocuvm ,  current pages in memory=%d\n",curproc->pid,curproc->pagesInMemory);
+
   if((sz = allocuvm(pgdir, sz, sz + 2*PGSIZE)) == 0)
     goto bad;
   clearpteu(pgdir, (char*)(sz - 2*PGSIZE));

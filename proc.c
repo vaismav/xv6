@@ -90,6 +90,7 @@ found:
   p->pid = nextpid++;
 
   release(&ptable.lock);
+  if(1) cprintf("proc.c: allocproc: PID %d start initializing proc  current pages in memory=%d\n",p->pid,p->pagesInMemory);
 
   // Allocate kernel stack.
   if((p->kstack = kalloc()) == 0){
@@ -137,6 +138,8 @@ found:
         p->swapPages[i+1].va=0; 
       }
     }
+    if(1) cprintf("proc.c: allocproc: PID %d about to initialize p->pagesInMemory=0 ,  current pages in memory=%d\n",p->pid,p->pagesInMemory);
+
     p->pagesInMemory=0;
     p->pagesInSwap=0;
     // we use -1 to know the queue is empty
@@ -198,6 +201,7 @@ growproc(int n)
     if((sz = allocuvm(curproc->pgdir, sz, sz + n)) == 0)
       return -1;
   } else if(n < 0){
+    if(1) cprintf("proc.c: growproc: PID %d about to deallocuvm ,  current pages in memory=%d\n",curproc->pid,curproc->pagesInMemory);
     if((sz = deallocuvm(curproc->pgdir, sz, sz + n)) == 0)
       return -1;
   }
@@ -220,6 +224,7 @@ fork(void)
   if((np = allocproc()) == 0){
     return -1;
   }
+  if(1) cprintf("proc.c: fork: PID %d allocated process, pages in memory=%d\n",np->pid,np->pagesInMemory);
 
   // Copy process state from proc.
   if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
@@ -229,6 +234,7 @@ fork(void)
     return -1;
   }
   
+  if(1) cprintf("proc.c: fork: PID %d copyied process state from proc, pages in memory=%d\n",np->pid,np->pagesInMemory);
   np->sz = curproc->sz;
   np->parent = curproc;
   *np->tf = *curproc->tf;
@@ -244,14 +250,15 @@ fork(void)
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
 
   pid = np->pid;
- 
+  if(1) cprintf("proc.c: fork: PID %d before start of copy pages data, pages in memory=%d\n",np->pid,np->pagesInMemory);
   // START OF copy pages data
   np->pagesInMemory=curproc->pagesInMemory;
   np->pagesInSwap=curproc->pagesInSwap;
   np->headOfMemoryPages=curproc->headOfMemoryPages;
   np->tailOfMemoryPages=curproc->tailOfMemoryPages;
   //the swapFile of child is like the swapFile of parent
-  
+    
+  if(1) cprintf("proc.c: fork: PID %d parent id = %d\n",np->pid,curproc->pid);
   if(curproc->pid > 2){
     char buffer[PGSIZE]=""; 
     int numRead=0;
@@ -279,7 +286,7 @@ fork(void)
     }
   }
   // END OF copy pages data
-
+if(1) cprintf("proc.c: fork: PID %d duplicated process, pages in memory=%d\n",np->pid,np->pagesInMemory);
   acquire(&ptable.lock);
 
   np->state = RUNNABLE;
@@ -303,9 +310,10 @@ exit(void)
     panic("init exiting");
   //closeing swapfile
 
-  if(curproc->pid > 2 && removeSwapFile(curproc)!=0)
-      panic("proc.c: exit: couldnt remove swapFile");
-
+  if(!(curproc->pid==1||curproc->parent->pid==1)){//NOT shell or init
+    if(curproc->pid > 2 && removeSwapFile(curproc)!=0)
+        panic("proc.c: exit: couldnt remove swapFile");
+  }
   // Close all open files.
   for(fd = 0; fd < NOFILE; fd++){
     if(curproc->ofile[fd]){
