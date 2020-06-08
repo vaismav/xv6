@@ -36,6 +36,8 @@ idtinit(void)
 void
 trap(struct trapframe *tf)
 {
+  uint address;
+  pte_t *pte;
   if(tf->trapno == T_SYSCALL){
     if(myproc()->killed)
       exit();
@@ -77,6 +79,34 @@ trap(struct trapframe *tf)
             cpuid(), tf->cs, tf->eip);
     lapiceoi();
     break;
+  // handleing page fault
+  case T_PGFLT:
+  //1) in swap file - need to swap back to pysical memory
+  //2) not it pgdir - need to create
+  //3) RO - first p try to write -> make writeable copy
+  //        second p try to write -> make W and try writung again
+    address = rcr2();
+    pte = (pte_t*)getPTE(myproc()->pgdir,(void*)address);
+    if (*pte & PTE_P){
+      //COW
+      // //if page is present
+      // //checks if page is writable
+      // if(!(PTE_W & PTE_FLAGS(pte[PTX(address)]))){
+      //   myproc()->tf = tf;
+      //   handle_write_fault();
+      //   if(myproc()->killed)
+      //     exit();
+      //   break;
+      // }
+    }
+    // if page is not present but in swap
+    else if(*pte & PTE_PG){
+      loadPageToMemory(address);
+
+    }
+    
+    break;
+
 
   //PAGEBREAK: 13
   default:

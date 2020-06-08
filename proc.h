@@ -50,12 +50,12 @@ struct swap_e{
   uint va;
 };
 
-struct freePages{ 
-  struct freePages *prev;
-  struct freePages *next;
-  uint va;
+// struct freePages{ 
+//   struct freePages *prev;
+//   struct freePages *next;
+//   uint va;
 
-};
+// };
 
 // Per-process state
 struct proc {

@@ -181,6 +181,9 @@ void            uartintr(void);
 void            uartputc(int);
 
 // vm.c
+uint            getPTE(pde_t *pgdir, const void *va);
+int             loadPageToMemory(uint address);
+int             swapOut();
 void            seginit(void);
 void            kvmalloc(void);
 pde_t*          setupkvm(void);

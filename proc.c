@@ -228,8 +228,7 @@ fork(void)
     np->state = UNUSED;
     return -1;
   }
-  //copy the pages in memorry array
-  // TODO:
+  
   np->sz = curproc->sz;
   np->parent = curproc;
   *np->tf = *curproc->tf;
@@ -245,6 +244,41 @@ fork(void)
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
 
   pid = np->pid;
+ 
+  // START OF copy pages data
+  np->pagesInMemory=curproc->pagesInMemory;
+  np->pagesInSwap=curproc->pagesInSwap;
+  np->headOfMemoryPages=curproc->headOfMemoryPages;
+  np->tailOfMemoryPages=curproc->tailOfMemoryPages;
+  //the swapFile of child is like the swapFile of parent
+  
+  if(curproc->pid > 2){
+    char buffer[PGSIZE]=""; 
+    int numRead=0;
+    int placeOnFile=0;
+    while((numRead=readFromSwapFile(curproc,buffer,placeOnFile,sizeof(buffer)))){ //have something to read
+    if(np->pid>2){
+      if(writeToSwapFile(np,buffer,placeOnFile,numRead)==-1) 
+        return -1;
+      placeOnFile+=numRead;
+      } 
+    }
+    //duplicate the process
+    for (int i = 0; i < MAX_PSYC_PAGES; i++)
+    {
+      np->swapPages[i].is_occupied=curproc->swapPages[i].is_occupied;
+      np->swapPages[i].va=curproc->swapPages[i].va; 
+      np->memoryPages[i].va=curproc->memoryPages[i].va;
+      np->memoryPages[i].prev=curproc->memoryPages[i].prev;
+      np->memoryPages[i].next=curproc->memoryPages[i].next;
+      np->memoryPages[i].age=curproc->memoryPages[i].age;
+      if(i==MAX_PSYC_PAGES-1){
+        np->swapPages[i+1].is_occupied=curproc->swapPages[i].is_occupied;
+        np->swapPages[i+1].va=curproc->swapPages[i].va; 
+      }
+    }
+  }
+  // END OF copy pages data
 
   acquire(&ptable.lock);
 
@@ -268,7 +302,10 @@ exit(void)
   if(curproc == initproc)
     panic("init exiting");
   //closeing swapfile
-  removeSwapFile(curproc);
+
+  if(curproc->pid > 2 && removeSwapFile(curproc)!=0)
+      panic("proc.c: exit: couldnt remove swapFile");
+
   // Close all open files.
   for(fd = 0; fd < NOFILE; fd++){
     if(curproc->ofile[fd]){
@@ -311,7 +348,7 @@ wait(void)
   int havekids, pid;
   struct proc *curproc = myproc();
   
-  acquire(&ptable.lock);
+  acquire(&ptable.lock); 
   for(;;){
     // Scan through table looking for exited children.
     havekids = 0;

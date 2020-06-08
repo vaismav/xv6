@@ -7,9 +7,21 @@
 #include "x86.h"
 #include "elf.h"
 
+
 int
 exec(char *path, char **argv)
 {
+  int NONEisDefined =0;
+  int pInMemory= 0;
+  int pInSwap= 0;
+  int headPM= 0;
+  int tailPM = 0;
+  struct memoryPages_e MP[MAX_PSYC_PAGES];  
+  struct swap_e SP[17]; 
+  #ifdef NONE
+    NONEisDefined = 1;
+  #endif
+
   char *s, *last;
   int i, off;
   uint argc, sz, sp, ustack[3+MAXARG+1];
@@ -18,6 +30,7 @@ exec(char *path, char **argv)
   struct proghdr ph;
   pde_t *pgdir, *oldpgdir;
   struct proc *curproc = myproc();
+  
 
   begin_op();
 
@@ -37,6 +50,41 @@ exec(char *path, char **argv)
 
   if((pgdir = setupkvm()) == 0)
     goto bad;
+
+  //backup the fields
+  //if we have a policy such as AQ/ NFUA/ LAPA
+  if(!NONEisDefined){  
+    pInMemory= curproc->pagesInMemory;
+    pInSwap= curproc->pagesInSwap;
+    headPM= curproc->headOfMemoryPages;
+    tailPM= curproc->tailOfMemoryPages;
+ 
+    for (int i = 0; i < MAX_PSYC_PAGES; i++)
+      {
+        SP[i].is_occupied=curproc->swapPages[i].is_occupied;
+        curproc->swapPages[i].is_occupied=0;
+        SP[i].va=curproc->swapPages[i].va;
+        curproc->swapPages[i].va=0;
+        MP[i].va=curproc->memoryPages[i].va;
+        curproc->memoryPages[i].va=0;
+        MP[i].prev=curproc->memoryPages[i].prev;
+        curproc->memoryPages[i].prev=-1;
+        MP[i].next=curproc->memoryPages[i].next;
+        curproc->memoryPages[i].next=-1;
+        MP[i].age=curproc->memoryPages[i].age;
+        curproc->memoryPages[i].age=0;
+        if(i==MAX_PSYC_PAGES-1){
+          SP[i+1].is_occupied=curproc->swapPages[i].is_occupied;
+          curproc->swapPages[i].is_occupied=0;
+          SP[i+1].va=curproc->swapPages[i].va; 
+          curproc->swapPages[i].va=0;
+        }
+      }       
+      curproc->pagesInMemory=0;
+      curproc->pagesInSwap=0;
+      curproc->headOfMemoryPages=-1;
+      curproc->tailOfMemoryPages=-1;
+    }
 
   // Load program into memory.
   sz = 0;
@@ -110,5 +158,30 @@ exec(char *path, char **argv)
     iunlockput(ip);
     end_op();
   }
+
+  if(!NONEisDefined){
+    curproc->headOfMemoryPages=headPM;
+    curproc->tailOfMemoryPages=tailPM;
+    curproc->pagesInSwap=pInSwap;
+    curproc->pagesInMemory=pInMemory;
+    for (int i = 0; i < MAX_PSYC_PAGES; i++)
+      {
+        
+        curproc->swapPages[i].is_occupied=SP[i].is_occupied;
+        curproc->swapPages[i].va=SP[i].va;
+        curproc->memoryPages[i].va=MP[i].va;
+        curproc->memoryPages[i].prev=MP[i].prev;
+        curproc->memoryPages[i].next=MP[i].next;
+        curproc->memoryPages[i].age=MP[i].age;
+        
+        if(i==MAX_PSYC_PAGES-1){
+          curproc->swapPages[i].is_occupied=SP[i+1].is_occupied;
+          curproc->swapPages[i].va=SP[i+1].va; 
+          
+        }
+      }       
+
+  }
+  
   return -1;
 }
