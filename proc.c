@@ -52,6 +52,20 @@ mycpu(void)
   panic("unknown apicid\n");
 }
 
+// gets pointer to pgdir and
+// return pointer to the proc
+// which hold that pgdir.
+// return 0 on error.
+struct proc*
+procOfpgdir(pde_t *pgdir){
+  struct proc *p;
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->state != UNUSED && p->pgdir==pgdir)
+      return p;
+  }
+  return (struct proc*)0;
+}
+
 // Disable interrupts so that we are not rescheduled
 // while reading proc from the cpu structure
 struct proc*
@@ -364,11 +378,13 @@ wait(void)
       if(p->parent != curproc)
         continue;
       havekids = 1;
-      if(p->state == ZOMBIE){
+      if(p->state == ZOMBIE){ 
         // Found one.
         pid = p->pid;
         kfree(p->kstack);
         p->kstack = 0;
+        if(1) cprintf("proc.c: wait: PID %d about to enter freevm for p->pid= %d, p->pagesInMemory=%d\n",curproc->pid, p->pid,p->pagesInMemory);
+
         freevm(p->pgdir);
         p->pid = 0;
         p->parent = 0;

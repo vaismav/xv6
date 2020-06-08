@@ -12,6 +12,7 @@ extern char data[];  // defined by kernel.ld
 pde_t *kpgdir;  // for use in scheduler()
 static pte_t * walkpgdir(pde_t *pgdir, const void *va, int alloc);
 
+
 // get a virtual address
 // return the pte addres or 0
 uint
@@ -630,7 +631,7 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
   
   char *mem;
   uint a;
-  struct proc* p=myproc();
+  struct proc* p=procOfpgdir(pgdir);
   if( 1 && isValidUserProc(p) ) cprintf("vm.c: allocuvm: PID %d enter allocuvm\n",p->pid);
   if(newsz >= KERNBASE)
     return 0;
@@ -705,8 +706,8 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 {
   pte_t *pte;
   uint a, pa;
-  struct proc* p =myproc();
-  if(1 && p != 0) cprintf("vm.c: deallocuvm: PID %d enter deallocuvm, pages in memory=%d\n",p->pid,p->pagesInMemory);
+  struct proc* p =procOfpgdir(pgdir);
+  if(1 && p != 0) cprintf("vm.c: deallocuvm: PID %d enter deallocuvm p->pid=%d, pages in memory=%d\n",myproc()->pid,p->pid,p->pagesInMemory);
 
   if(newsz >= oldsz)
     return oldsz;
