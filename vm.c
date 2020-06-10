@@ -57,14 +57,14 @@ int checkPTE_A(uint va){
 
 //SELECTION=NFUA
 //The page with the lowest counter should be removed
-int select_nfua_swap(void){
+int select_nfua_swap(struct proc* p){
   int lowest_counterP=INT_MAX; //lowest age 
   int page_index=0;
 
   //find the page with the lowest counter
   for (int i = 0; i < MAX_PSYC_PAGES; i++){
-   if(myproc()->memoryPages[i].age<lowest_counterP && myproc()->memoryPages[i].age>-1){
-    lowest_counterP=myproc()->memoryPages[i].age;
+   if(p->memoryPages[i].age<lowest_counterP && p->memoryPages[i].age>-1){
+    lowest_counterP=p->memoryPages[i].age;
     page_index=i;
    }
   }
@@ -74,7 +74,7 @@ int select_nfua_swap(void){
 //SELECTION=LAPA
 //the page with the smallest number of "1"s will be removed. 
 //If there are several such pages, the one with the lowest counter value should be removed.
-int select_lapa_swap(void){
+int select_lapa_swap(struct proc* p){
   int num_of_ones=INT_MAX;
   int lowest_counterP=INT_MAX; //lowest age 
   int page_index=0;
@@ -82,7 +82,7 @@ int select_lapa_swap(void){
 
   //find the page w- lowest num of 1& if there are few, find the lowest age.
   for (int i = 0; i < MAX_PSYC_PAGES; i++){
-    a = myproc()->memoryPages[i].age;
+    a = p->memoryPages[i].age;
     int num=0;
     while (a){ //count num of 1
       num += a & 1;
@@ -90,14 +90,14 @@ int select_lapa_swap(void){
     }
     if(num<num_of_ones){
       num_of_ones=num;
-      lowest_counterP=myproc()->memoryPages[i].age;
+      lowest_counterP=p->memoryPages[i].age;
       page_index=i;    
     }
     else if(num==num_of_ones){ 
       //find the one with smallest age
-      if(myproc()->memoryPages[i].age<lowest_counterP){
+      if(p->memoryPages[i].age<lowest_counterP){
         page_index=i;
-        lowest_counterP=myproc()->memoryPages[i].age;
+        lowest_counterP=p->memoryPages[i].age;
       }
     }
   }
@@ -142,22 +142,25 @@ int select_aq_swap(struct proc* p){
 // return -1 upon error
 int
 selectPageToSwap(struct proc* p){
-  // #ifdef NFUA
-  //   return select_nfua_swap();
-  // #endif
+  #ifdef NFUA
+    if(1) cprintf("vm: selectPageToSwap: PID %d: select page by NFUA policy \n",p->pid);
+    return select_nfua_swap(p);
+  #endif
 
-  // #ifdef LAPA
-  //   return select_lapa_swap();
-  // #endif
+  #ifdef LAPA
+    if(1) cprintf("vm: selectPageToSwap: PID %d: select page by LAPA policy \n",p->pid);
+    return select_lapa_swap(p);
+  #endif
 
-  // #ifdef SCFIFO
-    if(1) cprintf("vm: selectPageToSwap: PID %d: select page by fifo policy \n",p->pid);
+  #ifdef SCFIFO
+    if(1) cprintf("vm: selectPageToSwap: PID %d: select page by SCFIFO policy \n",p->pid);
     return select_scfifo_swap(p);
-  // #endif
+  #endif
 
-  // #ifdef AQ
-  //   return select_aq_swap(p);
-  // #endif
+  #ifdef AQ
+    if(1) cprintf("vm: selectPageToSwap: PID %d: select page by AQ policy \n",p->pid);
+    return select_aq_swap(p);
+  #endif
   // return -1;
 }
 
@@ -729,7 +732,11 @@ loaduvm(pde_t *pgdir, char *addr, struct inode *ip, uint offset, uint sz)
 int
 allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 {
-  
+  int defineNONE = 0;
+  #ifdef NONE
+    defineNONE=1;
+  #endif
+
   char *mem;
   uint a;
   struct proc* p=procOfpgdir(pgdir);
@@ -743,7 +750,7 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
   for(; a < newsz ; a += PGSIZE){
     // the section inside the if
     // doesnt apply on kernal and PID <= 2
-    if(isValidUserProc(p)){
+    if(isValidUserProc(p) && !defineNONE){
       if( 0 ) cprintf("vm.c: allocuvm: PID %d is valid, checking for num of pages in memory\n",p->pid);
       //checks if there are already 16 pages in pysc memory
       if(p->pagesInMemory == MAX_PSYC_PAGES){
@@ -785,13 +792,13 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
     }
      //if successfuly allocat the page and p-Pid > 2 update the coresponding entry
      
-    if(isValidUserProc(p)){
+    if(isValidUserProc(p) && !defineNONE){
       if(0) cprintf("vm.c: allocuvm: PID %d:  about to pushToMemoryPagesArray va =0x%x\n",p->pid,a);
       if(pushToMemoryPagesArray(p,a) <0 ){
         panic("vm.c: allocuvm: failed to push page to memory pages array");
       }
     }
-    else if(p != 0){
+    else if(p != 0 && !defineNONE){
       //increase init and shel proc pages counter
        p->pagesInMemory++;
        if(0) cprintf("vm.c: allocuvm: PID %d added page(0x%x) to memory, pages in memory=%d\n",p->pid,a,p->pagesInMemory);
@@ -799,7 +806,7 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
     
   }
   if(0 && p != 0) cprintf("vm.c: allocuvm: PID %d exit allocuvm ,p->pagesInMemory=%d, p->pagesInSwap=%d\n",p->pid,p->pagesInMemory,p->pagesInSwap);
-  if(0 && p!=0 && p->pid > 2){
+  if(0 && p!=0 && p->pid > 2 && !defineNONE){
     printPagesInSwap(p);
     pritntProcMemoryPages(p);
   }
@@ -813,12 +820,19 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 int
 deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 {
+  int defineNONE = 0;
+  #ifdef NONE
+    defineNONE=1;
+  #endif
+
   pte_t *pte;
   uint a, pa;
+  
   struct proc* p =procOfpgdir(pgdir);
   if(0 && p != 0) cprintf("vm.c: deallocuvm: PID %d enter deallocuvm p->pid=%d, pages in memory=%d, p->pagesInSwap = %d\n",myproc()->pid,p->pid,p->pagesInMemory,p->pagesInSwap);
   if(0 && p != 0) printPagesInSwap(p);
   if(0 && p != 0) pritntProcMemoryPages(p);
+  
 
   if(newsz >= oldsz){
     if(0 && p != 0) cprintf("vm.c: deallocuvm: PID %d exit deallocuvm BECAUSE newsz >= oldsz\n",p->pid);
@@ -838,16 +852,16 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       kfree(v);
       //decrease the pages count if p is initialized
       // and the page is present
-      if(isValidUserProc(p))
+      if(isValidUserProc(p) && !defineNONE)
         removePageFromMemory(p,a);
-      else if(p != 0){
+      else if(p != 0 && !defineNONE){
         p->pagesInMemory--;
         if(0) cprintf("vm.c: deallocuvm: PID %d removed page(0x%x) from memory, pages in memory=%d\n",p->pid,a,p->pagesInMemory);
       }
       *pte = 0;
     }
     // checks if the page is in swap
-    else if((*pte & PTE_PG)){
+    else if((*pte & PTE_PG) && !defineNONE){
       // if the page is in swap clear the swap
       if(0) cprintf("vm.c: deallocuvm: PID %d PTE_P is off, PTE_PG is on for address 0x%x.\n",p->pid,a);
       int index = findInSwap(p,a);

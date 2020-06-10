@@ -162,27 +162,28 @@ found:
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
 
-  // Initialize all the paging structs
+  #ifndef NONE
+    // Initialize all the paging structs
+    // initialze for every proc which is not 1 or 2
+    if(p->pid > 2){
+      // initializing swapFile
+      // upon failure free kstack and return 0
+      if(createSwapFile(p)!=0){
+        kfree(p->kstack);
+        return 0;
+      }
+      //initialize
+      init_page_arrays(p);
 
-  // initialze for every proc which is not 1 or 2
-  if(p->pid > 2){
-    // initializing swapFile
-    // upon failure free kstack and return 0
-    if(createSwapFile(p)!=0){
-      kfree(p->kstack);
-      return 0;
+      p->pagesInMemory=0;
+      p->pagesInSwap=0;
+      // we use -1 to know the queue is empty
+      p->headOfMemoryPages=-1;
+      p->tailOfMemoryPages=-1;
+
+      if(0) cprintf("proc.c: allocproc: PID %d about to initialize p->pagesInMemory=0 ,  current pages in memory=%d\n",p->pid,p->pagesInMemory);
     }
-    //initialize
-    init_page_arrays(p);
-
-    p->pagesInMemory=0;
-    p->pagesInSwap=0;
-    // we use -1 to know the queue is empty
-    p->headOfMemoryPages=-1;
-    p->tailOfMemoryPages=-1;
-
-    if(0) cprintf("proc.c: allocproc: PID %d about to initialize p->pagesInMemory=0 ,  current pages in memory=%d\n",p->pid,p->pagesInMemory);
-  }
+  #endif
 
   return p;
 }
@@ -290,33 +291,34 @@ fork(void)
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
 
   pid = np->pid;
+  #ifndef NONE
+    if(0) cprintf("proc.c: fork: PID %d before start of copy pages data, pages in memory=%d\n",np->pid,np->pagesInMemory);
+    // START OF copy pages data
+    np->pagesInMemory=curproc->pagesInMemory;
+    np->pagesInSwap=curproc->pagesInSwap;
+    np->headOfMemoryPages=curproc->headOfMemoryPages;
+    np->tailOfMemoryPages=curproc->tailOfMemoryPages;
+    //the swapFile of child is like the swapFile of parent
+      
+    if(0) cprintf("proc.c: fork: PID %d np->pid = %d\n",curproc->pid,np->pid);
 
-  if(0) cprintf("proc.c: fork: PID %d before start of copy pages data, pages in memory=%d\n",np->pid,np->pagesInMemory);
-  // START OF copy pages data
-  np->pagesInMemory=curproc->pagesInMemory;
-  np->pagesInSwap=curproc->pagesInSwap;
-  np->headOfMemoryPages=curproc->headOfMemoryPages;
-  np->tailOfMemoryPages=curproc->tailOfMemoryPages;
-  //the swapFile of child is like the swapFile of parent
-    
-  if(0) cprintf("proc.c: fork: PID %d np->pid = %d\n",curproc->pid,np->pid);
-
-  // copy the entire swapfile to the new proc
-  if(curproc->pid > 2){
-    char buffer[PGSIZE/2]=""; 
-    if(0) cprintf("proc.c: fork: size of buffer in fork: %d\n", sizeof(buffer));
-    int numRead=0;
-    int placeOnFile=0;
-    while((numRead=readFromSwapFile(curproc,buffer,placeOnFile,sizeof(buffer)))){ //have something to read
-    if(np->pid>2){
-      if(writeToSwapFile(np,buffer,placeOnFile,numRead)==-1) 
-        return -1;
-      placeOnFile+=numRead;
-      } 
+    // copy the entire swapfile to the new proc
+    if(curproc->pid > 2){
+      char buffer[PGSIZE/2]=""; 
+      if(0) cprintf("proc.c: fork: size of buffer in fork: %d\n", sizeof(buffer));
+      int numRead=0;
+      int placeOnFile=0;
+      while((numRead=readFromSwapFile(curproc,buffer,placeOnFile,sizeof(buffer)))){ //have something to read
+      if(np->pid>2){
+        if(writeToSwapFile(np,buffer,placeOnFile,numRead)==-1) 
+          return -1;
+        placeOnFile+=numRead;
+        } 
+      }
+      //duplicate the process
+      duplicate_page_arrays(curproc,np);
     }
-    //duplicate the process
-    duplicate_page_arrays(curproc,np);
-  }
+  #endif
 
   // END OF copy pages data
   if(0) cprintf("proc.c: fork: PID %d SUCCESSFULY created new proc np->pid =%d, np->pagesInMemory=%d\n",curproc->pid,np->pid,np->pagesInMemory);
@@ -342,13 +344,15 @@ exit(void)
   if(curproc == initproc)
     panic("init exiting");
   //closeing swapfile
+  #ifndef NONE  
+    if(!(curproc->pid==1||curproc->parent->pid==1)){//NOT shell or init
+      if(0) cprintf("proc.c: exit: PID %d about to remove swapFile\n",curproc->pid);
 
-  if(!(curproc->pid==1||curproc->parent->pid==1)){//NOT shell or init
-    if(0) cprintf("proc.c: exit: PID %d about to remove swapFile\n",curproc->pid);
+      if(curproc->pid > 2 && removeSwapFile(curproc)!=0)
+          panic("proc.c: exit: couldnt remove swapFile");
+    } //TODO: need to reset the arrays?
+  #endif
 
-    if(curproc->pid > 2 && removeSwapFile(curproc)!=0)
-        panic("proc.c: exit: couldnt remove swapFile");
-  } //TODO: need to reset the arrays?
   // Close all open files.
   for(fd = 0; fd < NOFILE; fd++){
     if(curproc->ofile[fd]){

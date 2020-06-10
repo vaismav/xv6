@@ -15,8 +15,8 @@ typedef uint pde_t;
 
 
 
-#define SCFIFO 0
-#define NFUA 1
-#define LAPA 2
-#define NONE 3
-#define AQ 4
+// #define SCFIFO 0
+// #define NFUA 1
+// #define LAPA 2
+// #define AQ 3
+// #define NONE 4

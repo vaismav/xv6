@@ -42,10 +42,23 @@ main(){
     //     printf(1,"testone.c: #ifndef SELECTION\n");
     // #endif
 
-    // #ifdef SCFIFO
-    //     printf(1,"testone.c: #ifdef SCFIFO\n");
-    // #endif
+    #ifndef NONE
+        printf(1,"testone.c: #ifndef NONE\n");
+    #endif
 
+    #ifdef SCFIFO
+        printf(1,"testone.c: #ifdef SCFIFO\n");
+    #endif
+
+    #ifdef LAPA
+        printf(1,"testone.c: #ifdef LAPA\n");
+    #endif
+
+    #ifdef NONE
+        printf(1,"testone.c: #ifdef NONE\n");
+    #endif
+
+    
     printf(1,"testone.c: strating memory pages test...\n");
     
     addPages(29);

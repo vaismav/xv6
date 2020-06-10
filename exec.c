@@ -12,11 +12,15 @@
 
 int
 exec(char *path, char **argv)
-{
+{ 
+  int NONEisDefined = 0;
+  #ifdef NONE
+    NONEisDefined=1;
+  #endif
 
     struct memoryPages_e MP[MAX_PSYC_PAGES];  
     struct swap_e SP[17];
-    int pInMemory= 0;
+    int pInMemory=0;
     int pInSwap= 0;
     int headPM= 0;
     int tailPM=0;
@@ -53,14 +57,15 @@ exec(char *path, char **argv)
 
   //backup the fields
   //if we have a policy such as AQ/ NFUA/ LAPA
-  #if 1  // || SELECTION != NONE  
-
-    //struct memoryPages_e MP[MAX_PSYC_PAGES];  
-    //struct swap_e SP[17];
+  if(!NONEisDefined){ 
+    // struct memoryPages_e MP[MAX_PSYC_PAGES];  
+    // struct swap_e SP[17];
     pInMemory= curproc->pagesInMemory;
     pInSwap= curproc->pagesInSwap;
     headPM= curproc->headOfMemoryPages;
-    tailPM= curproc->tailOfMemoryPages;
+    tailPM=curproc->tailOfMemoryPages;
+ 
+
  
     for (int i = 0; i < MAX_PSYC_PAGES; i++){
         SP[i].is_occupied=curproc->swapPages[i].is_occupied;
@@ -75,7 +80,7 @@ exec(char *path, char **argv)
           SP[i+1].va=curproc->swapPages[i+1].va;  
         }
       }       
-  #endif
+  }
 
   // Load program into memory.
   sz = 0;
@@ -134,12 +139,12 @@ exec(char *path, char **argv)
   safestrcpy(curproc->name, last, sizeof(curproc->name));
 
   //resetting the swap file 
-  #if 1  // || SELECTION != NONE 
+  if(!NONEisDefined){    
     if(!(curproc->pid==1 || curproc->parent->pid==1)){
       removeSwapFile(curproc);
       createSwapFile(curproc);
     }
-  #endif
+  }
 
 
   // Commit to the user image.
@@ -147,7 +152,7 @@ exec(char *path, char **argv)
   curproc->pgdir = pgdir;
   curproc->sz = sz;
   //maya & avishai BEGIN
-  #if 1  // || SELECTION != NONE 
+  if(!NONEisDefined){ 
     if(curproc->pid > 2){
 
       //reset proc paging data 
@@ -164,7 +169,7 @@ exec(char *path, char **argv)
       }
     }
     //maya & avishai END
-  #endif
+  }
 
   
   curproc->tf->eip = elf.entry;  // main
@@ -182,7 +187,7 @@ exec(char *path, char **argv)
     end_op();
   }
   //restore proc original data
-  #if 1  // || SELECTION != NONE 
+  if(!NONEisDefined){  
     curproc->headOfMemoryPages=headPM;
     curproc->tailOfMemoryPages=tailPM;
     curproc->pagesInSwap=pInSwap;
@@ -204,7 +209,7 @@ exec(char *path, char **argv)
           
         }
       }       
-  #endif
+  }
   if(0) cprintf("exec.c: PID %d FAILED to exec\n",curproc->pid); 
   return -1;
 }
