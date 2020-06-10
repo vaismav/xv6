@@ -130,7 +130,10 @@ void            userinit(void);
 int             wait(void);
 void            wakeup(void*);
 void            yield(void);
-struct proc*    procOfpgdir(pde_t*); //OURS
+//OURS
+struct proc*    procOfpgdir(pde_t*); 
+void            init_page_arrays(struct proc*);
+void            duplicate_page_arrays(struct proc*, struct proc*);
 
 // swtch.S
 void            swtch(struct context**, struct context*);
@@ -199,6 +202,7 @@ void            switchuvm(struct proc*);
 void            switchkvm(void);
 int             copyout(pde_t*, uint, void*, uint);
 void            clearpteu(pde_t *pgdir, char *uva);
+int             pushToMemoryPagesArray(struct proc* p, uint va);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))

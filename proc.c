@@ -21,6 +21,41 @@ extern void trapret(void);
 static void wakeup1(void *chan);
 
 void
+duplicate_page_arrays(struct proc *source, struct proc *dest){
+  for (int i = 0; i < MAX_PSYC_PAGES; i++){
+      dest->swapPages[i].is_occupied=source->swapPages[i].is_occupied;
+      dest->swapPages[i].va=source->swapPages[i].va; 
+      dest->memoryPages[i].va=source->memoryPages[i].va;
+      dest->memoryPages[i].prev=source->memoryPages[i].prev;
+      dest->memoryPages[i].next=source->memoryPages[i].next;
+      dest->memoryPages[i].age=source->memoryPages[i].age;
+      dest->memoryPages[i].is_occupied=source->memoryPages[i].is_occupied;
+      if(i==MAX_PSYC_PAGES-1){
+        dest->swapPages[i+1].is_occupied=source->swapPages[i+1].is_occupied;
+        dest->swapPages[i+1].va=source->swapPages[i+1].va; 
+      }
+    }
+}
+
+void 
+init_page_arrays(struct proc *p){
+  for (int i = 0; i < MAX_PSYC_PAGES; i++){
+      p->swapPages[i].is_occupied=0;
+      p->swapPages[i].va=-1;
+      p->memoryPages[i].va=-1;
+      p->memoryPages[i].prev=-1;
+      p->memoryPages[i].next=-1;
+      p->memoryPages[i].age=0;
+      p->memoryPages[i].is_occupied=0;
+      if(i==MAX_PSYC_PAGES-1){
+        p->swapPages[i+1].is_occupied=0;
+        p->swapPages[i+1].va=-1; 
+      }
+    }
+}
+
+
+void
 pinit(void)
 {
   initlock(&ptable.lock, "ptable");
@@ -104,7 +139,7 @@ found:
   p->pid = nextpid++;
 
   release(&ptable.lock);
-  if(1) cprintf("proc.c: allocproc: PID %d start initializing proc  current pages in memory=%d\n",p->pid,p->pagesInMemory);
+  if(0) cprintf("proc.c: allocproc: PID %d start initializing proc  current pages in memory=%d\n",p->pid,p->pagesInMemory);
 
   // Allocate kernel stack.
   if((p->kstack = kalloc()) == 0){
@@ -137,28 +172,16 @@ found:
       kfree(p->kstack);
       return 0;
     }
-
-    for (int i = 0; i < MAX_PSYC_PAGES; i++)
-    {
-      p->swapPages[i].is_occupied=0;
-      p->swapPages[i].va=0; 
-      p->memoryPages[i].va=0;
-      p->memoryPages[i].prev=-1;
-      p->memoryPages[i].next=-1;
-      p->memoryPages[i].age=0;
-      p->memoryPages[i].is_occupied=0;
-      if(i==MAX_PSYC_PAGES-1){
-        p->swapPages[i+1].is_occupied=0;
-        p->swapPages[i+1].va=0; 
-      }
-    }
-    if(1) cprintf("proc.c: allocproc: PID %d about to initialize p->pagesInMemory=0 ,  current pages in memory=%d\n",p->pid,p->pagesInMemory);
+    //initialize
+    init_page_arrays(p);
 
     p->pagesInMemory=0;
     p->pagesInSwap=0;
     // we use -1 to know the queue is empty
     p->headOfMemoryPages=-1;
     p->tailOfMemoryPages=-1;
+
+    if(0) cprintf("proc.c: allocproc: PID %d about to initialize p->pagesInMemory=0 ,  current pages in memory=%d\n",p->pid,p->pagesInMemory);
   }
 
   return p;
@@ -215,7 +238,7 @@ growproc(int n)
     if((sz = allocuvm(curproc->pgdir, sz, sz + n)) == 0)
       return -1;
   } else if(n < 0){
-    if(1) cprintf("proc.c: growproc: PID %d about to deallocuvm ,  current pages in memory=%d\n",curproc->pid,curproc->pagesInMemory);
+    if(0) cprintf("proc.c: growproc: PID %d about to deallocuvm ,  current pages in memory=%d\n",curproc->pid,curproc->pagesInMemory);
     if((sz = deallocuvm(curproc->pgdir, sz, sz + n)) == 0)
       return -1;
   }
@@ -236,19 +259,22 @@ fork(void)
 
   // Allocate process.
   if((np = allocproc()) == 0){
+    if(0) cprintf("proc.c: fork: PID %d Failed to allocproc() new proc \n",curproc->pid);
     return -1;
   }
-  if(1) cprintf("proc.c: fork: PID %d allocated process, pages in memory=%d\n",np->pid,np->pagesInMemory);
+  if(0) cprintf("proc.c: fork: PID %d allocated process, pages in memory=%d\n",np->pid,np->pagesInMemory);
 
   // Copy process state from proc.
   if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
+    if(0) cprintf("proc.c: fork: PID %d FAILED to copyuvm to np->pgdir, np->pid=5d \n",curproc->pid,np->pid);
+
     kfree(np->kstack);
     np->kstack = 0;
     np->state = UNUSED;
     return -1;
   }
   
-  if(1) cprintf("proc.c: fork: PID %d copyied process state from proc, pages in memory=%d\n",np->pid,np->pagesInMemory);
+  if(0) cprintf("proc.c: fork: PID %d copyied process state from proc, pages in memory=%d\n",np->pid,np->pagesInMemory);
   np->sz = curproc->sz;
   np->parent = curproc;
   *np->tf = *curproc->tf;
@@ -264,7 +290,8 @@ fork(void)
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
 
   pid = np->pid;
-  if(1) cprintf("proc.c: fork: PID %d before start of copy pages data, pages in memory=%d\n",np->pid,np->pagesInMemory);
+
+  if(0) cprintf("proc.c: fork: PID %d before start of copy pages data, pages in memory=%d\n",np->pid,np->pagesInMemory);
   // START OF copy pages data
   np->pagesInMemory=curproc->pagesInMemory;
   np->pagesInSwap=curproc->pagesInSwap;
@@ -272,9 +299,12 @@ fork(void)
   np->tailOfMemoryPages=curproc->tailOfMemoryPages;
   //the swapFile of child is like the swapFile of parent
     
-  if(1) cprintf("proc.c: fork: PID %d parent id = %d\n",np->pid,curproc->pid);
+  if(0) cprintf("proc.c: fork: PID %d np->pid = %d\n",curproc->pid,np->pid);
+
+  // copy the entire swapfile to the new proc
   if(curproc->pid > 2){
-    char buffer[PGSIZE]=""; 
+    char buffer[PGSIZE/2]=""; 
+    if(0) cprintf("proc.c: fork: size of buffer in fork: %d\n", sizeof(buffer));
     int numRead=0;
     int placeOnFile=0;
     while((numRead=readFromSwapFile(curproc,buffer,placeOnFile,sizeof(buffer)))){ //have something to read
@@ -285,22 +315,11 @@ fork(void)
       } 
     }
     //duplicate the process
-    for (int i = 0; i < MAX_PSYC_PAGES; i++)
-    {
-      np->swapPages[i].is_occupied=curproc->swapPages[i].is_occupied;
-      np->swapPages[i].va=curproc->swapPages[i].va; 
-      np->memoryPages[i].va=curproc->memoryPages[i].va;
-      np->memoryPages[i].prev=curproc->memoryPages[i].prev;
-      np->memoryPages[i].next=curproc->memoryPages[i].next;
-      np->memoryPages[i].age=curproc->memoryPages[i].age;
-      if(i==MAX_PSYC_PAGES-1){
-        np->swapPages[i+1].is_occupied=curproc->swapPages[i].is_occupied;
-        np->swapPages[i+1].va=curproc->swapPages[i].va; 
-      }
-    }
+    duplicate_page_arrays(curproc,np);
   }
+
   // END OF copy pages data
-if(1) cprintf("proc.c: fork: PID %d duplicated process, pages in memory=%d\n",np->pid,np->pagesInMemory);
+  if(0) cprintf("proc.c: fork: PID %d SUCCESSFULY created new proc np->pid =%d, np->pagesInMemory=%d\n",curproc->pid,np->pid,np->pagesInMemory);
   acquire(&ptable.lock);
 
   np->state = RUNNABLE;
@@ -325,9 +344,11 @@ exit(void)
   //closeing swapfile
 
   if(!(curproc->pid==1||curproc->parent->pid==1)){//NOT shell or init
+    if(0) cprintf("proc.c: exit: PID %d about to remove swapFile\n",curproc->pid);
+
     if(curproc->pid > 2 && removeSwapFile(curproc)!=0)
         panic("proc.c: exit: couldnt remove swapFile");
-  }
+  } //TODO: need to reset the arrays?
   // Close all open files.
   for(fd = 0; fd < NOFILE; fd++){
     if(curproc->ofile[fd]){
@@ -365,7 +386,7 @@ exit(void)
 // Return -1 if this process has no children.
 int
 wait(void)
-{
+{ 
   struct proc *p;
   int havekids, pid;
   struct proc *curproc = myproc();
@@ -383,7 +404,7 @@ wait(void)
         pid = p->pid;
         kfree(p->kstack);
         p->kstack = 0;
-        if(1) cprintf("proc.c: wait: PID %d about to enter freevm for p->pid= %d, p->pagesInMemory=%d\n",curproc->pid, p->pid,p->pagesInMemory);
+        if(0) cprintf("proc.c: wait: PID %d about to enter freevm for p->pid= %d, p->pagesInMemory=%d\n",curproc->pid, p->pid,p->pagesInMemory);
 
         freevm(p->pgdir);
         p->pid = 0;

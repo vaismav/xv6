@@ -11,3 +11,12 @@ typedef uint pde_t;
 #define AL_PAGES 32  // pages of process
 #define OCCUPIED 1
 #define UNOCCUPIED 0
+
+
+
+
+#define SCFIFO 0
+#define NFUA 1
+#define LAPA 2
+#define NONE 3
+#define AQ 4

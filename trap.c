@@ -81,12 +81,12 @@ trap(struct trapframe *tf)
     break;
   // handleing page fault
   case T_PGFLT:
-    if(1 && myproc() != 0) cprintf("trap.c: trap: PID %d: T_PGFLT\n ",myproc()->pid);
+    address = rcr2();
+    if(0 && myproc() != 0) cprintf("trap.c: trap: PID %d: T_PGFLT on address 0x%x\n ",myproc()->pid,address);
   //1) in swap file - need to swap back to pysical memory
   //2) not it pgdir - need to create
   //3) RO - first p try to write -> make writeable copy
   //        second p try to write -> make W and try writung again
-    address = rcr2();
     pte = (pte_t*)getPTE(myproc()->pgdir,(void*)address);
     if (*pte & PTE_P){
       //COW
@@ -102,12 +102,13 @@ trap(struct trapframe *tf)
     }
     // if page is not present but in swap
     else if(*pte & PTE_PG){
-      if(1 && myproc() != 0) cprintf("trap.c: trap: PID %d: pagefault, page is in swap\n ",myproc()->pid);
+      if(0 && myproc() != 0) cprintf("trap.c: trap: PID %d: pagefault, page is in swap on address 0x%x\n ",myproc()->pid, address);
       loadPageToMemory(address);
-
+      break;
     }
+    //we dont break this case
+    // so if T_PGFAULT isnt becaus the page is in swap, than the algorithem behave normally
     
-    break;
 
 
   //PAGEBREAK: 13

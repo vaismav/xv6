@@ -41,7 +41,7 @@ struct memoryPages_e{
   int prev;
   int next;  
   uint age; 
-  char  is_occupied;
+  short  is_occupied;
   //uint pgdir;                    //the pgdir of the page TODO:
 };
 

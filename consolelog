@@ -1,55 +1,429 @@
-os202@os202-lubuntu:~/Desktop/xv6-public$ make qemu
-gcc -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer -fno-stack-protector -fno-pie -no-pie   -c -o trap.o trap.c
-ld -m    elf_i386 -T kernel.ld -o kernel entry.o bio.o console.o exec.o file.o fs.o ide.o ioapic.o kalloc.o kbd.o lapic.o log.o main.o mp.o picirq.o pipe.o proc.o sleeplock.o spinlock.o string.o swtch.o syscall.o sysfile.o sysproc.o trapasm.o trap.o uart.o vectors.o vm.o  -b binary initcode entryother
-objdump -S kernel > kernel.asm
-objdump -t kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' > kernel.sym
-dd if=/dev/zero of=xv6.img count=10000
-10000+0 records in
-10000+0 records out
-5120000 bytes (5.1 MB, 4.9 MiB) copied, 0.0486703 s, 105 MB/s
-dd if=bootblock of=xv6.img conv=notrunc
-1+0 records in
-1+0 records out
-512 bytes copied, 0.000248371 s, 2.1 MB/s
-dd if=kernel of=xv6.img seek=1 conv=notrunc
-369+1 records in
-369+1 records out
-189104 bytes (189 kB, 185 KiB) copied, 0.00202032 s, 93.6 MB/s
+os202@os202-lubuntu:~/os202/ass3/xv6$ make qemu
 qemu-system-i386 -serial mon:stdio -drive file=fs.img,index=1,media=disk,format=raw -drive file=xv6.img,index=0,media=disk,format=raw -smp 2 -m 512 
 xv6...
 cpu1: starting 1
+proc.c: allocproc: PID 1 start initializing proc  current pages in memory=0
 cpu0: starting 0
 sb: size 1000 nblocks 941 ninodes 200 nlog 30 logstart 2 inodestart 32 bmap start 58
+exec.c: PID 1 enter exec
+exec.c: Load program into memory: PID 1 about to sz = allocuvm ,  current pages in memory=0
+vm.c: freevm: PID 1 about to deallocuvm 
+exec.c: PID 1 SUCCCESSFULY exec 
 init: starting sh
-$ signalTest
-TEST: uint sigprocmask(uint): 
-TEST: uint sigprocmask(uint) doesnt update mask
-TEST: uint sigaction(): 
-TEST: uint sigaction(): not changing process signal handlers
-TEST: uint kill(int,int): 
-TEST: uint kill(int,int): Sent SIGKILL to PID:7 
-trap.c: handleSignal:9 is a pending signal and not blocked.
-trap.c: handleSignal: p->signal_Handlers[9] = 0 
-TEST: uint kill(int,int): PASSED cpid(from wait)=7  
-trap.c: handleSignal:9 is a pending signal and not blocked.
-trap.c: handleSignal: p->signal_Handlers[9] = 0 
-FINISHED UTILITIES TESTS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
-TEST 1: create new procSignalsData from default procSignalsData settings
-TEST 1 PASSED
-TEST 2: create new procSignalsData with custom signal mask and custom signal handlers
-TEST 2 PASSED
-TEST 3: create new procSignalsData with custom signal mask and custom signal handlers
-TEST 5: check user handler behavor
-TEST 5: PID:0 sigmask =  80000000 
-TEST 5: act->sigmask =  0 .  
-TEST 5: act.sa_handler =  330 .  
-TESTTEST 5: sending signal '5' from pid: 12 TO pid: 11 
-trap.c: handleSignal:5 is a pending signal and not blocked.
-trap.c: handleSignal: p->signal_Handlers[5] = 330 
-trap.c: handleSignal: handling user handler for signal:5 on pid: 11
-trap.c: handleSignal: reset pending signals 5
-trap.c: handleSignal: backupd signal_mask 5
-proc.c: handleSignal: exit back to trap
-pid 11 signalTest: trap 14 err 5 on cpu 1 eip 0x22 addr 0xfff0e483--kill proc
-pid 3 signalTest: trap 14 err 5 on cpu 1 eip 0xffffffff addr 0xffffffff--kill proc
-$ zombie!
+proc.c: allocproc: PID 2 start initializing proc  current pages in memory=0
+proc.c: fork: PID 2 allocated process, pages in memory=0
+proc.c: fork: PID 2 copyied process state from proc, pages in memory=0
+proc.c: fork: PID 2 before start of copy pages data, pages in memory=0
+proc.c: fork: PID 1 np->pid = 2
+proc.c: fork: PID 1 SUCCESSFULY created new proc np->pid =2, np->pagesInMemory=0
+exec.c: PID 2 enter exec
+exec.c: Load program into memory: PID 2 about to sz = allocuvm ,  current pages in memory=0
+vm.c: freevm: PID 2 about to deallocuvm 
+exec.c: PID 2 SUCCCESSFULY exec 
+$ testone
+proc.c: allocproc: PID 3 start initializing proc  current pages in memory=0
+proc.c: allocproc: PID 3 about to initialize p->pagesInMemory=0 ,  current pages in memory=0
+proc.c: fork: PID 3 allocated process, pages in memory=0
+proc.c: fork: PID 3 copyied process state from proc, pages in memory=0
+proc.c: fork: PID 3 before start of copy pages data, pages in memory=0
+proc.c: fork: PID 2 np->pid = 3
+proc.c: fork: PID 2 SUCCESSFULY created new proc np->pid =3, np->pagesInMemory=0
+vm.c: allocuvm: PID 3 enter allocuvm with pgdir of p->pid 3
+vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x4000
+vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 0 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0xffffffff is occupied=0 
+vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x5000
+vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x4000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0xffffffff is occupied=0 
+vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x6000
+vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 2 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x4000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x5000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0xffffffff is occupied=0 
+vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x7000
+vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 3 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x4000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x5000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x6000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0xffffffff is occupied=0 
+vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x8000
+vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 4 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x4000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x5000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x6000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x7000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0xffffffff is occupied=0 
+vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x9000
+vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 5 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x4000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x5000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x6000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x7000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0x8000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 5 va=0xffffffff is occupied=0 
+vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0xa000
+vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 6 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x4000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x5000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x6000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x7000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0x8000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 5 va=0x9000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 6 va=0xffffffff is occupied=0 
+vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0xb000
+vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 7 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x4000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x5000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x6000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x7000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0x8000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 5 va=0x9000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 6 va=0xa000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 7 va=0xffffffff is occupied=0 
+vm.c: allocuvm: PID 3 exit allocuvm ,p->pagesInMemory=8, p->pagesInSwap=0
+
+vm.c: printPagesInSwap: PID 3 SWAP pages list:
+vm.c: printPagesInSwap: index: 0, is_occupied: 0, va: 0xffffffff 
+vm.c: printPagesInSwap: index: 1, is_occupied: 0, va: 0xffffffff 
+vm.c: printPagesInSwap: index: 2, is_occupied: 0, va: 0xffffffff 
+vm.c: printPagesInSwap: index: 3, is_occupied: 0, va: 0xffffffff 
+vm.c: printPagesInSwap: index: 4, is_occupied: 0, va: 0xffffffff 
+vm.c: printPagesInSwap: index: 5, is_occupied: 0, va: 0xffffffff 
+vm.c: printPagesInSwap: index: 6, is_occupied: 0, va: 0xffffffff 
+vm.c: printPagesInSwap: index: 7, is_occupied: 0, va: 0xffffffff 
+vm.c: printPagesInSwap: index: 8, is_occupied: 0, va: 0xffffffff 
+vm.c: printPagesInSwap: index: 9, is_occupied: 0, va: 0xffffffff 
+vm.c: printPagesInSwap: index: 10, is_occupied: 0, va: 0xffffffff 
+vm.c: printPagesInSwap: index: 11, is_occupied: 0, va: 0xffffffff 
+vm.c: printPagesInSwap: index: 12, is_occupied: 0, va: 0xffffffff 
+vm.c: printPagesInSwap: index: 13, is_occupied: 0, va: 0xffffffff 
+vm.c: printPagesInSwap: index: 14, is_occupied: 0, va: 0xffffffff 
+vm.c: printPagesInSwap: index: 15, is_occupied: 0, va: 0xffffffff 
+vm.c: printPagesInSwap: index: 16, is_occupied: 0, va: 0xffffffff 
+
+vm.c: pritntProcMemoryPages: PID 3 memory pages list:
+vm.c: pritntProcMemoryPages: index: 0, is_occupied: 1, va: 0x4000, age: 0, next: 1, prev: 0  
+vm.c: pritntProcMemoryPages: index: 1, is_occupied: 1, va: 0x5000, age: 0, next: 2, prev: 0  
+vm.c: pritntProcMemoryPages: index: 2, is_occupied: 1, va: 0x6000, age: 0, next: 3, prev: 1  
+vm.c: pritntProcMemoryPages: index: 3, is_occupied: 1, va: 0x7000, age: 0, next: 4, prev: 2  
+vm.c: pritntProcMemoryPages: index: 4, is_occupied: 1, va: 0x8000, age: 0, next: 5, prev: 3  
+vm.c: pritntProcMemoryPages: index: 5, is_occupied: 1, va: 0x9000, age: 0, next: 6, prev: 4  
+vm.c: pritntProcMemoryPages: index: 6, is_occupied: 1, va: 0xa000, age: 0, next: 7, prev: 5  
+vm.c: pritntProcMemoryPages: index: 7, is_occupied: 1, va: 0xb000, age: 0, next: -1, prev: 6  
+vm.c: pritntProcMemoryPages: index: 8, is_occupied: 0, va: 0xffffffff, age: 0, next: -1, prev: -1  
+vm.c: pritntProcMemoryPages: index: 9, is_occupied: 0, va: 0xffffffff, age: 0, next: -1, prev: -1  
+vm.c: pritntProcMemoryPages: index: 10, is_occupied: 0, va: 0xffffffff, age: 0, next: -1, prev: -1  
+vm.c: pritntProcMemoryPages: index: 11, is_occupied: 0, va: 0xffffffff, age: 0, next: -1, prev: -1  
+vm.c: pritntProcMemoryPages: index: 12, is_occupied: 0, va: 0xffffffff, age: 0, next: -1, prev: -1  
+vm.c: pritntProcMemoryPages: index: 13, is_occupied: 0, va: 0xffffffff, age: 0, next: -1, prev: -1  
+vm.c: pritntProcMemoryPages: index: 14, is_occupied: 0, va: 0xffffffff, age: 0, next: -1, prev: -1  
+vm.c: pritntProcMemoryPages: index: 15, is_occupied: 0, va: 0xffffffff, age: 0, next: -1, prev: -1  
+exec.c: PID 3 enter exec
+exec.c: Load program into memory: PID 3 about to sz = allocuvm ,  current pages in memory=8
+vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 0 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0xffffffff is occupied=0 
+vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x0 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0xffffffff is occupied=0 
+vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 2 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x0 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x1000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0xffffffff is occupied=0 
+vm.c: freevm: PID 3 about to deallocuvm 
+exec.c: PID 3 SUCCCESSFULY exec 
+testone.c: strating memory pages test...
+testone.c:  start test: add 18 pages
+vm.c: allocuvm: PID 3 enter allocuvm with pgdir of p->pid 3
+vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x3000
+vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 3 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x0 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x1000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x2000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0xffffffff is occupied=0 
+vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x4000
+vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 4 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x0 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x1000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x2000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x3000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0xffffffff is occupied=0 
+vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x5000
+vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 5 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x0 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x1000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x2000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x3000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0x4000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 5 va=0xffffffff is occupied=0 
+vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x6000
+vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 6 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x0 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x1000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x2000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x3000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0x4000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 5 va=0x5000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 6 va=0xffffffff is occupied=0 
+vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x7000
+vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 7 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x0 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x1000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x2000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x3000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0x4000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 5 va=0x5000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 6 va=0x6000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 7 va=0xffffffff is occupied=0 
+vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x8000
+vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 8 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x0 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x1000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x2000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x3000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0x4000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 5 va=0x5000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 6 va=0x6000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 7 va=0x7000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 8 va=0xffffffff is occupied=0 
+vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x9000
+vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 9 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x0 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x1000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x2000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x3000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0x4000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 5 va=0x5000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 6 va=0x6000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 7 va=0x7000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 8 va=0x8000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 9 va=0xffffffff is occupied=0 
+vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0xa000
+vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 10 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x0 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x1000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x2000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x3000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0x4000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 5 va=0x5000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 6 va=0x6000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 7 va=0x7000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 8 va=0x8000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 9 va=0x9000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 10 va=0xffffffff is occupied=0 
+vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0xb000
+vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 11 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x0 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x1000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x2000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x3000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0x4000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 5 va=0x5000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 6 va=0x6000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 7 va=0x7000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 8 va=0x8000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 9 va=0x9000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 10 va=0xa000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 11 va=0xffffffff is occupied=0 
+vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0xc000
+vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 12 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x0 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x1000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x2000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x3000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0x4000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 5 va=0x5000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 6 va=0x6000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 7 va=0x7000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 8 va=0x8000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 9 va=0x9000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 10 va=0xa000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 11 va=0xb000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 12 va=0xffffffff is occupied=0 
+vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0xd000
+vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 13 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x0 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x1000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x2000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x3000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0x4000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 5 va=0x5000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 6 va=0x6000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 7 va=0x7000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 8 va=0x8000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 9 va=0x9000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 10 va=0xa000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 11 va=0xb000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 12 va=0xc000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 13 va=0xffffffff is occupied=0 
+vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0xe000
+vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 14 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x0 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x1000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x2000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x3000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0x4000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 5 va=0x5000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 6 va=0x6000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 7 va=0x7000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 8 va=0x8000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 9 va=0x9000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 10 va=0xa000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 11 va=0xb000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 12 va=0xc000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 13 va=0xd000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 14 va=0xffffffff is occupied=0 
+vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0xf000
+vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 15 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x0 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x1000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x2000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x3000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0x4000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 5 va=0x5000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 6 va=0x6000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 7 va=0x7000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 8 va=0x8000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 9 va=0x9000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 10 va=0xa000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 11 va=0xb000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 12 va=0xc000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 13 va=0xd000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 14 va=0xe000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 15 va=0xffffffff is occupied=0 
+vm.c: allocuvm: PID 3 has MAX_PSYC_PAGES (p->pagesInMemory = 16) pages in memory, swaping one page out
+vm.c: swapOut: enter swapOut for p->pid 3
+vm.c: swapOut: PID 3: chose page in index 1 to swap out
+fs.c: writeToSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
+vm.c: swapOut: PID 3: removing page in index 1 from p->memoryPages
+vm.c: removePageFromMemory: PID 3 removed page(0x1000) from memory,p->memoryPages[index].is_occupied =0, pages in memory=15
+vm.c: swapOut: p->pid 3 removed page in index 1 from memory 
+vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x10000
+vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 15 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x0 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0xffffffff is occupied=0 
+vm.c: allocuvm: PID 3 has MAX_PSYC_PAGES (p->pagesInMemory = 16) pages in memory, swaping one page out
+vm.c: swapOut: enter swapOut for p->pid 3
+vm.c: swapOut: PID 3: chose page in index 0 to swap out
+fs.c: writeToSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
+vm.c: swapOut: PID 3: removing page in index 0 from p->memoryPages
+vm.c: removePageFromMemory: PID 3 removed page(0x0) from memory,p->memoryPages[index].is_occupied =0, pages in memory=15
+vm.c: swapOut: p->pid 3 removed page in index 0 from memory 
+vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x11000
+vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 15 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0xffffffff is occupied=0 
+vm.c: allocuvm: PID 3 has MAX_PSYC_PAGES (p->pagesInMemory = 16) pages in memory, swaping one page out
+vm.c: swapOut: enter swapOut for p->pid 3
+vm.c: swapOut: PID 3: chose page in index 3 to swap out
+fs.c: writeToSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
+vm.c: swapOut: PID 3: removing page in index 3 from p->memoryPages
+vm.c: removePageFromMemory: PID 3 removed page(0x3000) from memory,p->memoryPages[index].is_occupied =0, pages in memory=15
+vm.c: swapOut: p->pid 3 removed page in index 3 from memory 
+vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x12000
+vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 15 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x11000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x10000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x2000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0xffffffff is occupied=0 
+vm.c: allocuvm: PID 3 has MAX_PSYC_PAGES (p->pagesInMemory = 16) pages in memory, swaping one page out
+vm.c: swapOut: enter swapOut for p->pid 3
+vm.c: swapOut: PID 3: chose page in index 2 to swap out
+fs.c: writeToSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
+vm.c: swapOut: PID 3: removing page in index 2 from p->memoryPages
+vm.c: removePageFromMemory: PID 3 removed page(0x2000) from memory,p->memoryPages[index].is_occupied =0, pages in memory=15
+vm.c: swapOut: p->pid 3 removed page in index 2 from memory 
+vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x13000
+vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 15 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x11000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x10000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0xffffffff is occupied=0 
+vm.c: allocuvm: PID 3 has MAX_PSYC_PAGES (p->pagesInMemory = 16) pages in memory, swaping one page out
+vm.c: swapOut: enter swapOut for p->pid 3
+vm.c: swapOut: PID 3: chose page in index 4 to swap out
+fs.c: writeToSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
+vm.c: swapOut: PID 3: removing page in index 4 from p->memoryPages
+vm.c: removePageFromMemory: PID 3 removed page(0x4000) from memory,p->memoryPages[index].is_occupied =0, pages in memory=15
+vm.c: swapOut: p->pid 3 removed page in index 4 from memory 
+vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x14000
+vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 15 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x11000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x10000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x13000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x12000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0xffffffff is occupied=0 
+vm.c: allocuvm: PID 3 exit allocuvm ,p->pagesInMemory=16, p->pagesInSwap=5
+
+vm.c: printPagesInSwap: PID 3 SWAP pages list:
+vm.c: printPagesInSwap: index: 0, is_occupied: 1, va: 0x1000 
+vm.c: printPagesInSwap: index: 1, is_occupied: 1, va: 0x0 
+vm.c: printPagesInSwap: index: 2, is_occupied: 1, va: 0x3000 
+vm.c: printPagesInSwap: index: 3, is_occupied: 1, va: 0x2000 
+vm.c: printPagesInSwap: index: 4, is_occupied: 1, va: 0x4000 
+vm.c: printPagesInSwap: index: 5, is_occupied: 0, va: 0xffffffff 
+vm.c: printPagesInSwap: index: 6, is_occupied: 0, va: 0xffffffff 
+vm.c: printPagesInSwap: index: 7, is_occupied: 0, va: 0xffffffff 
+vm.c: printPagesInSwap: index: 8, is_occupied: 0, va: 0xffffffff 
+vm.c: printPagesInSwap: index: 9, is_occupied: 0, va: 0xffffffff 
+vm.c: printPagesInSwap: index: 10, is_occupied: 0, va: 0xffffffff 
+vm.c: printPagesInSwap: index: 11, is_occupied: 0, va: 0xffffffff 
+vm.c: printPagesInSwap: index: 12, is_occupied: 0, va: 0xffffffff 
+vm.c: printPagesInSwap: index: 13, is_occupied: 0, va: 0xffffffff 
+vm.c: printPagesInSwap: index: 14, is_occupied: 0, va: 0xffffffff 
+vm.c: printPagesInSwap: index: 15, is_occupied: 0, va: 0xffffffff 
+vm.c: printPagesInSwap: index: 16, is_occupied: 0, va: 0xffffffff 
+
+vm.c: pritntProcMemoryPages: PID 3 memory pages list:
+vm.c: pritntProcMemoryPages: index: 0, is_occupied: 1, va: 0x11000, age: 0, next: 3, prev: 1  
+vm.c: pritntProcMemoryPages: index: 1, is_occupied: 1, va: 0x10000, age: 0, next: 0, prev: 15  
+vm.c: pritntProcMemoryPages: index: 2, is_occupied: 1, va: 0x13000, age: 0, next: 4, prev: 3  
+vm.c: pritntProcMemoryPages: index: 3, is_occupied: 1, va: 0x12000, age: 0, next: 2, prev: 0  
+vm.c: pritntProcMemoryPages: index: 4, is_occupied: 1, va: 0x14000, age: 0, next: -1, prev: 2  
+vm.c: pritntProcMemoryPages: index: 5, is_occupied: 1, va: 0x5000, age: 0, next: 6, prev: -1  
+vm.c: pritntProcMemoryPages: index: 6, is_occupied: 1, va: 0x6000, age: 0, next: 7, prev: 5  
+vm.c: pritntProcMemoryPages: index: 7, is_occupied: 1, va: 0x7000, age: 0, next: 8, prev: 6  
+vm.c: pritntProcMemoryPages: index: 8, is_occupied: 1, va: 0x8000, age: 0, next: 9, prev: 7  
+vm.c: pritntProcMemoryPages: index: 9, is_occupied: 1, va: 0x9000, age: 0, next: 10, prev: 8  
+vm.c: pritntProcMemoryPages: index: 10, is_occupied: 1, va: 0xa000, age: 0, next: 11, prev: 9  
+vm.c: pritntProcMemoryPages: index: 11, is_occupied: 1, va: 0xb000, age: 0, next: 12, prev: 10  
+vm.c: pritntProcMemoryPages: index: 12, is_occupied: 1, va: 0xc000, age: 0, next: 13, prev: 11  
+vm.c: pritntProcMemoryPages: index: 13, is_occupied: 1, va: 0xd000, age: 0, next: 14, prev: 12  
+vm.c: pritntProcMemoryPages: index: 14, is_occupied: 1, va: 0xe000, age: 0, next: 15, prev: 13  
+vm.c: pritntProcMemoryPages: index: 15, is_occupied: 1, va: 0xf000, age: 0, next: 1, prev: 14  
+trap.c: trap: PID 3: T_PGFLT on address 0x3c1
+ trap.c: trap: PID 3: pagefault, page is in swap on address 0x3c1
+ vm.c: swapOut: enter swapOut for p->pid 3
+vm.c: swapOut: PID 3: chose page in index 5 to swap out
+fs.c: writeToSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
+vm.c: swapOut: PID 3: removing page in index 5 from p->memoryPages
+vm.c: removePageFromMemory: PID 3 removed page(0x5000) from memory,p->memoryPages[index].is_occupied =0, pages in memory=15
+vm.c: swapOut: p->pid 3 removed page in index 5 from memory 
+fs.c: readFromSwapFile: PID 3 wrote to file after fork ,pages in memory= 15
+fs.c: readFromSwapFile: PID 3 wrote to file after fork ,pages in memory= 15
+vm.c: loadPageToMemory: PID 3:  about to pushToMemoryPagesArray va =0x0
+vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 15 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x11000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x10000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x13000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x12000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0x14000 is occupied=1 
+vm.c: pushToMemoryPagesArray: p->pid 3 index 5 va=0xffffffff is occupied=0 
+xv6...
+cpu1: starting 1
+proc.c: allocproc: PID 1 start initializing proc  current pages in memory=0
+cpu0: starting 0
+sb: size 1000 nblocks 941 ninodes 200 nlog 30 logstart 2 inodestart 32 bmap start 58
+exec.c: PID 1 enter exec
+exec.c: Load program into memory: PID 1 about to sz = allocuvm ,  current pages in memory=0
+vm.c: freevm: PID 1 about to deallocuvm 
+exec.c: PID 1 SUCCCESSFULY exec 
+init: starting sh
+proc.c: allocproc: PID 2 start initializing proc  current pages in memory=0
+proc.c: fork: PID 2 allocated process, pages in memory=0
+proc.c: fork: PID 2 copyied process state from proc, pages in memory=0
+proc.c: fork: PID 2 before start of copy pages data, pages in memory=0
+proc.c: fork: PID 1 np->pid = 2
+proc.c: fork: PID 1 SUCCESSFULY created new proc np->pid =2, np->pagesInMemory=0
+exec.c: PID 2 enter exec
+exec.c: Load program into memory: PID 2 about to sz = allocuvm ,  current pages in memory=0
+vm.c: freevm: PID 2 about to deallocuvm 
+exec.c: PID 2 SUCCCESSFULY exec 
