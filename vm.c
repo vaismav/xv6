@@ -44,12 +44,12 @@ pritntProcMemoryPages(struct proc* p){
 
 // checks the refrence bit,
 // clear it anyway and return the ref bit value
-int checkPTE_A(uint va){
+int checkPTE_A(struct proc* p,uint va){
   uint accessed;
-  pte_t *pte = walkpgdir(myproc()->pgdir, (void*)va, 0);
-  if (!*pte)
+  pte_t *pte = walkpgdir(p->pgdir, (void*)va, 0);
+  if (!(*pte))
     return -1;
-  accessed = (*pte) & PTE_A;
+  accessed = (*pte) & PTE_A; //0x020
   (*pte) &= ~PTE_A;
   return accessed;
 }
@@ -58,16 +58,19 @@ int checkPTE_A(uint va){
 //SELECTION=NFUA
 //The page with the lowest counter should be removed
 int select_nfua_swap(struct proc* p){
-  int lowest_counterP=INT_MAX; //lowest age 
-  int page_index=0;
+  uint lowest_counterP=__UINT32_MAX__; //lowest age 
+  int page_index=-1;
 
   //find the page with the lowest counter
   for (int i = 0; i < MAX_PSYC_PAGES; i++){
-   if(p->memoryPages[i].age<lowest_counterP && p->memoryPages[i].age>-1){
-    lowest_counterP=p->memoryPages[i].age;
-    page_index=i;
-   }
+    if(1) cprintf("vm.c: select_nfua_swap: p->pid %d index %d, va 0x%x \tage 0x%x\n",p->pid, i, p->memoryPages[i].va, p->memoryPages[i].age);
+      if(p->memoryPages[i].age < lowest_counterP){
+        lowest_counterP=p->memoryPages[i].age;
+        page_index=i;
+      }
   }
+  if(page_index < 0 ) cprintf("vm.c: select_nfua_swap: p->pid %d: invalid index %d\n",p->pid, page_index);
+  else if(1) cprintf("vm.c: select_nfua_swap: p->pid %d: selected page 0x%x in index %d\n",p->pid, p->memoryPages[page_index].va, page_index);
   return page_index;
 }
 
@@ -75,32 +78,36 @@ int select_nfua_swap(struct proc* p){
 //the page with the smallest number of "1"s will be removed. 
 //If there are several such pages, the one with the lowest counter value should be removed.
 int select_lapa_swap(struct proc* p){
-  int num_of_ones=INT_MAX;
-  int lowest_counterP=INT_MAX; //lowest age 
-  int page_index=0;
+  int num_of_ones=__INT_MAX__;
+  int lowest_counterP=__INT_MAX__; //lowest age 
+  int page_index=-1;
   uint a=0;
 
   //find the page w- lowest num of 1& if there are few, find the lowest age.
   for (int i = 0; i < MAX_PSYC_PAGES; i++){
-    a = p->memoryPages[i].age;
-    int num=0;
-    while (a){ //count num of 1
-      num += a & 1;
-      a = a >> 1;
-    }
-    if(num<num_of_ones){
-      num_of_ones=num;
-      lowest_counterP=p->memoryPages[i].age;
-      page_index=i;    
-    }
-    else if(num==num_of_ones){ 
-      //find the one with smallest age
-      if(p->memoryPages[i].age<lowest_counterP){
-        page_index=i;
+    if(p->memoryPages[i].is_occupied){
+      if(0) cprintf("vm.c: select_lapa_swap: p->pid %d index %d, va 0x%x \tage 0x%x\n",p->pid, i, p->memoryPages[i].va, p->memoryPages[i].age);
+      a = p->memoryPages[i].age;
+      int num=0;
+      while (a){ //count num of 1
+        num += a & 1;
+        a = a >> 1;
+      }
+      if(num<num_of_ones){
+        num_of_ones=num;
         lowest_counterP=p->memoryPages[i].age;
+        page_index=i;    
+      }
+      else if(num==num_of_ones){ 
+        //find the one with smallest age
+        if(p->memoryPages[i].age<lowest_counterP){
+          page_index=i;
+          lowest_counterP=p->memoryPages[i].age;
+        }
       }
     }
   }
+  if(1) cprintf("vm.c: select_lapa_swap: p->pid %d: selected page 0x%x in index %d\n",p->pid, p->memoryPages[page_index].va, page_index);
   return page_index;
 }
 
@@ -113,7 +120,7 @@ int select_scfifo_swap(struct proc* p){
   //find first one with PTE_A=0
   while (!found)
   {
-   if(checkPTE_A(p->memoryPages[i].va)==0){
+   if(checkPTE_A(p, p->memoryPages[i].va)==0){
       return i;
    }
    // if didnt reach the end of the list
@@ -132,8 +139,9 @@ int select_scfifo_swap(struct proc* p){
 //SELECTION==AQ
 //select the last inserted page in the memoryPages array
 int select_aq_swap(struct proc* p){
-  int i=p->tailOfMemoryPages;
-
+  int i=p->headOfMemoryPages;
+  if(i < 0)
+    panic("vm.c: select_aq_swap: head index is < 0");
   return i;
 }
 
@@ -161,7 +169,7 @@ selectPageToSwap(struct proc* p){
     if(1) cprintf("vm: selectPageToSwap: PID %d: select page by AQ policy \n",p->pid);
     return select_aq_swap(p);
   #endif
-  // return -1;
+  return -1;
 }
 
 // gets a proc p and an virtual addres of page. 
@@ -271,7 +279,14 @@ pushToMemoryPagesArray(struct proc* p, uint va){
   // updating the page virtual address
   p->memoryPages[index].va = va;
   // updating the page age
+  #ifdef NFUA
+  //for NFUA policy age =0 is ok
   p->memoryPages[index].age = 0; //TODO: ask maya
+  #endif
+  #ifdef LAPA
+      //only LAPA policy needs to reset age to 0xFFFFFFFF
+      p->memoryPages[index].age = __UINT32_MAX__;
+  #endif
 
   p->memoryPages[index].is_occupied =1;
   p->pagesInMemory++;
@@ -417,6 +432,8 @@ swapOut(struct proc* p){
   *pte |= PTE_PG;
   // Clearing the PTE_P flag
   *pte &= ~PTE_P;
+  // Clearing the PTE_A flag
+  *pte &= ~PTE_A;
 
   //free the page on the pysic space
   kfree(P2V(PTE_ADDR(*pte)));
@@ -455,6 +472,7 @@ loadPageToMemory(uint address){
   if(p->pagesInMemory == MAX_PSYC_PAGES){
     if(swapOut(p) < 0){
       cprintf("vm.c: loadPageToMemory: PID %d: failed to swap out page,  = %d",p->pid,p->pagesInMemory);
+      panic("swapOut FAILED");
       return -1;  
     }
   }
@@ -500,7 +518,7 @@ loadPageToMemory(uint address){
     return -1;
   }
   //put pysc address in pte with pte current plags and set PTE_P
-  *pte = V2P(mem) /*pa*/ | (*pte & 0xFFF) /*current flags*/ | PTE_P;
+  *pte = V2P(mem) /*pa*/ | (*pte & 0xFFF) /*current flags*/ | PTE_P | PTE_A;
   //clear PTE_PG
   *pte &= ~PTE_PG;
 

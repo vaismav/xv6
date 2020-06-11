@@ -56,11 +56,15 @@ trap(struct trapframe *tf)
   switch(tf->trapno){
   case T_IRQ0 + IRQ_TIMER:
     if(cpuid() == 0){
+       #ifndef NONE
+        //andle the aging macanisem in NONE is not defined.
+        if( isValidUserProc(myproc()) ){
+          if(1) cprintf("\ntrap.c: trap: PID %d NONE is NOT defined, about to handle_aging_counter\n",myproc()->pid);
+          handle_aging_counter(myproc()); 
+        }
+      #endif
       acquire(&tickslock);
       ticks++;
-      #ifndef NONE
-        handle_aging_counter(myproc()); //TODO: need to do on myproc?
-      #endif
       wakeup(&ticks);
       release(&tickslock);
     }
@@ -90,9 +94,16 @@ trap(struct trapframe *tf)
   // handleing page fault
   
   case T_PGFLT:
+    #ifndef NONE
+        //andle the aging macanisem in NONE is not defined.
+        if( isValidUserProc(myproc()) ){
+          if(1) cprintf("\ntrap.c: trap: PID %d NONE is NOT defined, about to handle_aging_counter\n",myproc()->pid);
+          handle_aging_counter(myproc()); 
+        }
+    #endif
     if(!defineNONE){
       address = rcr2();
-      if(0 && myproc() != 0) cprintf("trap.c: trap: PID %d: T_PGFLT on address 0x%x\n ",myproc()->pid,address);
+      if(1 && myproc() != 0) cprintf("trap.c: trap: PID %d: T_PGFLT on address 0x%x\n ",myproc()->pid,address);
     //1) in swap file - need to swap back to pysical memory
     //2) not it pgdir - need to create
     //3) RO - first p try to write -> make writeable copy

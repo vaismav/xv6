@@ -20,6 +20,34 @@ extern void trapret(void);
 
 static void wakeup1(void *chan);
 
+
+// gets a proc and print its 
+// memory pages queue from
+// HEAD->to->TAIL
+void
+printMemoryPagesQueue(struct proc* p){
+  int index = p->headOfMemoryPages;
+  cprintf("proc.c: printMemoryPagesQueue: p->pid %d: head index is %d\n",p->pid,index);
+  //check queue is empty
+  if(index == -1){
+    cprintf("proc.c: printMemoryPagesQueue: p->pid %d: QUEUE: empty\n",p->pid);
+    return;
+  }
+  //print the head of the queue
+  cprintf("proc.c:printMemoryPagesQueue:p->pid%d:HEAD: 0x%x",p->pid, p->memoryPages[index].va);
+  index = p->memoryPages[index].next;
+  //printing the queue
+  while(index > 0 && index < 16){
+    cprintf("->0x%x",p->memoryPages[index].va);
+    if( index == p->memoryPages[index].next)
+      panic("proc.c: printMemoryPagesQueue: link next point on itself");
+    index = p->memoryPages[index].next;
+  }
+  //ending the line
+  cprintf("\n");
+}
+
+//duplicate the mamoryPage array and the swapPage array of source proc to dest proc
 void
 duplicate_page_arrays(struct proc *source, struct proc *dest){
   for (int i = 0; i < MAX_PSYC_PAGES; i++){
@@ -37,6 +65,7 @@ duplicate_page_arrays(struct proc *source, struct proc *dest){
     }
 }
 
+//initialie the mamoryPage and swapPage arrays
 void 
 init_page_arrays(struct proc *p){
   for (int i = 0; i < MAX_PSYC_PAGES; i++){
@@ -54,52 +83,118 @@ init_page_arrays(struct proc *p){
     }
 }
 
+//handle changes in proc data at each clock tick
 void
 handle_aging_counter(struct proc* p){
-  #ifdef NFUA || LAPA //TODO: OK?
+  int nfuaOrLapa =0;
+  #ifdef NFUA
+    nfuaOrLapa=1;
+  #endif
+  #ifdef LAPA
+    nfuaOrLapa=1;
+  #endif
+  
+  if(nfuaOrLapa){
+    if(1) cprintf("proc.c: handle_aging_counter:NFUA/LAPA: p->pid %d start aging\n",p->pid);
+
     acquire(&ptable.lock);
     for (int i = 0; i < MAX_PSYC_PAGES; i++){
-    //not accessd - shift right by 1 bit
-    if(checkPTE_A(p->memoryPages[i].va)==0){
-       p->memoryPages[i].age= p->memoryPages[i].age>>1;
-    }
-    //accessd - shift right by 1 bit & add 1 to msb
-    else if(checkPTE_A(p->memoryPages[i].va)==1){
-      p->memoryPages[i].age= p->memoryPages[i].age>>1;
-      p->memoryPages[i].age&=0x80000000; 
-     }
-   }
-
-    release(&ptable.lock);
-  #endif
-  #ifdef AQ //TODO: check if ok?
-    acquire(&ptable.lock);
-    //the queue starts tail-->head
-    //takes the tail
-    int index=p->headOfMemoryPages;
-    int end_index=p->tailOfMemoryPages;
-    //if PTE_A=1 change places w- the next
-    while(p->memoryPages[index].next!=end_index){
-      if(checkPTE_A(p->memoryPages[index].va)==1){
-        int prev_tmp=p->memoryPages[index].prev;
-        int next_tmp=p->memoryPages[index].next;
-        //new next is next's next
-        p->memoryPages[index].next=p->memoryPages[next_tmp].next;
-        //new prev is next's prev
-        p->memoryPages[index].prev=p->memoryPages[next_tmp].prev;
-        p->memoryPages[next_tmp].prev=prev_tmp;
-        p->memoryPages[next_tmp].next=next_tmp;
-
+      //not accessd - shift right by 1 bit
+      if(p->memoryPages[i].is_occupied){
+        if(0) cprintf("proc.c: handle_aging_counter:NFUA/LAPA: p->pid %d page 0x%x is in index %d \tage 0x%x\n",p->pid,p->memoryPages[i].va,i,p->memoryPages[i].age);   
+        p->memoryPages[i].age = p->memoryPages[i].age >> 1;   
+        //accessd - shift right by 1 bit & add 1 to msb
+        if(checkPTE_A(p,p->memoryPages[i].va)){
+          if(1) cprintf("proc.c: handle_aging_counter:NFUA/LAPA: p->pid %d page 0x%x was accsessed\n",p->pid,p->memoryPages[i].va);
+          p->memoryPages[i].age |= 0x80000000; 
+        }
       }
     }
     release(&ptable.lock);
-  #endif
-}
+  }
+  
+  //#ifdef AQ //TODO: check if ok?
+    acquire(&ptable.lock);
+    //the queue starts tail-->head
+    //takes the tail
 
-//TODO: IMPORTANT!!! (AQ) 
-//When more space is required, the last page in the queue is replaced. 
-//Note: when a page is created or loaded into the RAM, it takes the first place in the queue.
-//should we reset the PTE_A? 
+    //debug
+    if(1){
+      cprintf("proc.c: handle_aging_counter:AQ: p->pid %d start passing on the pages queue\n",p->pid);
+      printMemoryPagesQueue(p);
+    }
+    int index=p->headOfMemoryPages;
+    //if PTE_A=1 change places w- the next
+    while(index > 0 && index < 16){// when index= -1 we got to the tail
+      int index_prev=p->memoryPages[index].prev;
+      int index_next=p->memoryPages[index].next;
+      if(p->memoryPages[index].is_occupied){
+        if(checkPTE_A(p,p->memoryPages[index].va)){
+          
+          if(1) cprintf("proc.c: handle_aging_counter:AQ: p->pid %d page 0x%x was accsessed\n",p->pid,p->memoryPages[index].va);
+          //as long as index isnt the tail, switching the link with its next
+          if(index!=p->tailOfMemoryPages){
+
+            // IF LINK is head
+            if(index == p->headOfMemoryPages){
+              //change my next and prev | update current link
+              p->memoryPages[index].prev=index_next;
+              p->memoryPages[index].next=p->memoryPages[index_next].next;
+              
+              // make next link head
+              p->memoryPages[index_next].prev=-1;
+              p->memoryPages[index_next].next=index;
+
+              p->headOfMemoryPages=index_next;
+
+            }
+            else{
+              // IF LINK is in the middle of the list
+              //change index.prev | connect the prev link to the next link
+              p->memoryPages[index_prev].next=index_next;
+              
+              //if not tail move the link 1 step forward to the tail
+              //change my next and prev | update current link
+              p->memoryPages[index].prev=index_next;
+              p->memoryPages[index].next=p->memoryPages[index_next].next;
+              
+              //change next.prev | connect the next next 
+              p->memoryPages[index_next].prev=index;
+
+              //change next's next and prev to be mine
+              p->memoryPages[index_next].prev=index_prev;
+              p->memoryPages[index_next].next=index;
+
+              //check if my index.next is tail
+              if(index_next==p->tailOfMemoryPages){
+                p->tailOfMemoryPages=index;
+              }
+            }
+            
+          }
+          
+          if(1){
+            cprintf("proc.c: handle_aging_counter:AQ: p->pid %d new queue state:\n",p->pid);
+            printMemoryPagesQueue(p);
+          }
+        }
+        
+      }
+      //advancing to the next link
+      index=index_next;
+    }
+    release(&ptable.lock);
+  //#endif
+}
+// 1-->2-->3-->4
+// ref 2
+// 1->3->2->4
+// new 5 
+// 3->2->4->5
+// ref 3
+// 2->3->4->5
+// ref 4
+
 
 void
 pinit(void)
@@ -500,6 +595,14 @@ scheduler(void)
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      // #ifndef NONE
+      //   //andle the aging macanisem in NONE is not defined.
+      //   if(p->state != UNUSED && p->pid > 2 ){
+      //     if(1) cprintf("proc.c: scheduler: p->pid %d NONE is NOT defined, about to handle_aging_counter\n",p->pid);
+      //     handle_aging_counter(p); 
+      //   }
+      // #endif
+
       if(p->state != RUNNABLE)
         continue;
 
