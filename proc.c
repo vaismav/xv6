@@ -54,6 +54,52 @@ init_page_arrays(struct proc *p){
     }
 }
 
+void
+handle_aging_counter(struct proc* p){
+  #ifdef NFUA || LAPA //TODO: OK?
+    acquire(&ptable.lock);
+    for (int i = 0; i < MAX_PSYC_PAGES; i++){
+    //not accessd - shift right by 1 bit
+    if(checkPTE_A(p->memoryPages[i].va)==0){
+       p->memoryPages[i].age= p->memoryPages[i].age>>1;
+    }
+    //accessd - shift right by 1 bit & add 1 to msb
+    else if(checkPTE_A(p->memoryPages[i].va)==1){
+      p->memoryPages[i].age= p->memoryPages[i].age>>1;
+      p->memoryPages[i].age&=0x80000000; 
+     }
+   }
+
+    release(&ptable.lock);
+  #endif
+  #ifdef AQ //TODO: check if ok?
+    acquire(&ptable.lock);
+    //the queue starts tail-->head
+    //takes the tail
+    int index=p->headOfMemoryPages;
+    int end_index=p->tailOfMemoryPages;
+    //if PTE_A=1 change places w- the next
+    while(p->memoryPages[index].next!=end_index){
+      if(checkPTE_A(p->memoryPages[index].va)==1){
+        int prev_tmp=p->memoryPages[index].prev;
+        int next_tmp=p->memoryPages[index].next;
+        //new next is next's next
+        p->memoryPages[index].next=p->memoryPages[next_tmp].next;
+        //new prev is next's prev
+        p->memoryPages[index].prev=p->memoryPages[next_tmp].prev;
+        p->memoryPages[next_tmp].prev=prev_tmp;
+        p->memoryPages[next_tmp].next=next_tmp;
+
+      }
+    }
+    release(&ptable.lock);
+  #endif
+}
+
+//TODO: IMPORTANT!!! (AQ) 
+//When more space is required, the last page in the queue is replaced. 
+//Note: when a page is created or loaded into the RAM, it takes the first place in the queue.
+//should we reset the PTE_A? 
 
 void
 pinit(void)

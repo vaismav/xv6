@@ -35,14 +35,11 @@ struct context {
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 //To know which pages are in the process' swap file and where they are located in that file
 struct memoryPages_e{ 
-  // struct pagesSwap* next;     //next page
-  // struct pagesSwap* prev;     //prev page
   uint va;                       //virtual address [10][10][12= 0x0] va & 0x[F]FFFF000     [1111]
   int prev;
   int next;  
   uint age; 
   short  is_occupied;
-  //uint pgdir;                    //the pgdir of the page TODO:
 };
 
 struct swap_e{

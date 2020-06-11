@@ -58,6 +58,9 @@ trap(struct trapframe *tf)
     if(cpuid() == 0){
       acquire(&tickslock);
       ticks++;
+      #ifndef NONE
+        handle_aging_counter(myproc()); //TODO: need to do on myproc?
+      #endif
       wakeup(&ticks);
       release(&tickslock);
     }
