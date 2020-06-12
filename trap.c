@@ -94,6 +94,7 @@ trap(struct trapframe *tf)
   // handleing page fault
   
   case T_PGFLT:
+    myproc()->numOfPagedFault++;
     #ifndef NONE
         //andle the aging macanisem in NONE is not defined.
         if( isValidUserProc(myproc()) ){

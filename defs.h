@@ -78,6 +78,9 @@ char*           kalloc(void);
 void            kfree(char*);
 void            kinit1(void*, void*);
 void            kinit2(void*, void*);
+//OUR
+int             currFreePages(void);
+int             totalFreePages(void);
 
 // kbd.c
 void            kbdintr(void);

@@ -54,6 +54,10 @@ main(){
         printf(1,"testone.c: #ifdef LAPA\n");
     #endif
 
+    #ifdef AQ
+        printf(1,"testone.c: #ifdef AQ\n");
+    #endif
+
     #ifdef NONE
         printf(1,"testone.c: #ifdef NONE\n");
     #endif

@@ -43,6 +43,8 @@ printMemoryPagesQueue(struct proc* p){
       panic("proc.c: printMemoryPagesQueue: link next point on itself");
     index = p->memoryPages[index].next;
   }
+  //printing page fault's and page out's
+  cprintf("page faults= %d, page outs= %d \n",p->numOfPagedFault, p->numOfPagedOut);
   //ending the line
   cprintf("\n");
 }
@@ -113,7 +115,7 @@ handle_aging_counter(struct proc* p){
     release(&ptable.lock);
   }
   
-  //#ifdef AQ //TODO: check if ok?
+  #ifdef AQ //TODO: check if ok?
     acquire(&ptable.lock);
     //the queue starts tail-->head
     //takes the tail
@@ -173,10 +175,10 @@ handle_aging_counter(struct proc* p){
             
           }
           
-          if(1){
-            cprintf("proc.c: handle_aging_counter:AQ: p->pid %d new queue state:\n",p->pid);
-            printMemoryPagesQueue(p);
-          }
+          // if(1){
+          //   cprintf("proc.c: handle_aging_counter:AQ: p->pid %d new queue state:\n",p->pid);
+          //   printMemoryPagesQueue(p);
+          // }
         }
         
       }
@@ -184,7 +186,7 @@ handle_aging_counter(struct proc* p){
       index=index_next;
     }
     release(&ptable.lock);
-  //#endif
+  #endif
 }
 // 1-->2-->3-->4
 // ref 2
@@ -321,6 +323,8 @@ found:
       // we use -1 to know the queue is empty
       p->headOfMemoryPages=-1;
       p->tailOfMemoryPages=-1;
+      p->numOfPagedFault=0;
+      p->numOfPagedOut=0;
 
       if(0) cprintf("proc.c: allocproc: PID %d about to initialize p->pagesInMemory=0 ,  current pages in memory=%d\n",p->pid,p->pagesInMemory);
     }
@@ -439,6 +443,8 @@ fork(void)
     np->pagesInSwap=curproc->pagesInSwap;
     np->headOfMemoryPages=curproc->headOfMemoryPages;
     np->tailOfMemoryPages=curproc->tailOfMemoryPages;
+    np->numOfPagedOut=0;
+    np->numOfPagedFault=0;
     //the swapFile of child is like the swapFile of parent
       
     if(0) cprintf("proc.c: fork: PID %d np->pid = %d\n",curproc->pid,np->pid);
@@ -793,12 +799,21 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
-    cprintf("%d %s %s", p->pid, state, p->name);
+    #ifdef FALSE
+      cprintf("%d %s %s", p->pid, state, p->name);
+    #endif
+    #ifdef TRUE //new poutput line if VERBOSE_PRINT=TRUE
+      int totalPaged = p->pagesInMemory + p->pagesInSwap;
+      cprintf("%d %s %d %d %d %d %s ", p->pid, state, totalPaged, p->pagesInSwap, p->numOfPagedFault, p->numOfPagedOut, p->name);
+    #endif
     if(p->state == SLEEPING){
       getcallerpcs((uint*)p->context->ebp+2, pc);
       for(i=0; i<10 && pc[i] != 0; i++)
         cprintf(" %p", pc[i]);
     }
     cprintf("\n");
+    #ifdef TRUE
+      cprintf(" %d / %d  free page frames in the system /n", currFreePages(), totalFreePages()); 
+    #endif
   }
 }

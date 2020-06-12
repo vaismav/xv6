@@ -79,6 +79,8 @@ struct proc {
   struct swap_e swapPages[17];           //pages in swap file
   int headOfMemoryPages;
   int tailOfMemoryPages;
+  int numOfPagedOut;
+  int numOfPagedFault;
 
 
 };

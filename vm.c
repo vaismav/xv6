@@ -427,6 +427,7 @@ swapOut(struct proc* p){
   p->swapPages[indexInSwapPages].is_occupied = 1;
   p->swapPages[indexInSwapPages].va = p->memoryPages[indexInMemoryPages].va;
   p->pagesInSwap++;
+  p->numOfPagedOut++;
 
   // Turinig on the PGfault flag
   *pte |= PTE_PG;

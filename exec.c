@@ -8,8 +8,6 @@
 #include "elf.h"
 
 
-
-
 int
 exec(char *path, char **argv)
 { 
@@ -24,6 +22,8 @@ exec(char *path, char **argv)
     int pInSwap= 0;
     int headPM= 0;
     int tailPM=0;
+    int pageOut=0;
+    int pageFault=0;
  
 
   char *s, *last;
@@ -64,7 +64,8 @@ exec(char *path, char **argv)
     pInSwap= curproc->pagesInSwap;
     headPM= curproc->headOfMemoryPages;
     tailPM=curproc->tailOfMemoryPages;
- 
+    pageOut=curproc->numOfPagedOut;
+    pageFault=curproc->numOfPagedFault;
 
  
     for (int i = 0; i < MAX_PSYC_PAGES; i++){
@@ -162,6 +163,8 @@ exec(char *path, char **argv)
       curproc->pagesInSwap=0;
       curproc->headOfMemoryPages=-1;
       curproc->tailOfMemoryPages=-1;
+      curproc->numOfPagedFault=0;
+      curproc->numOfPagedOut=0;
 
       //update new pages;
       for(i=0; i < sz/PGSIZE ;i++){
@@ -192,6 +195,9 @@ exec(char *path, char **argv)
     curproc->tailOfMemoryPages=tailPM;
     curproc->pagesInSwap=pInSwap;
     curproc->pagesInMemory=pInMemory;
+    curproc->numOfPagedOut=pageOut;
+    curproc->numOfPagedFault=pageFault;
+    
     for (int i = 0; i < MAX_PSYC_PAGES; i++)
       {
         
