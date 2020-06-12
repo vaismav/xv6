@@ -868,7 +868,17 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       if(pa == 0)
         panic("kfree");
       char *v = P2V(pa);
-      kfree(v);
+      if(COW){
+        //if there is only one refrence - can be deleted
+        if(kGetRef(v)==1)
+          kfree(v);
+        else{
+          //if there is more then one refrence - decrease
+          kDecRef(v);
+        }
+      }else{
+        kfree(v);
+      }
       //decrease the pages count if p is initialized
       // and the page is present
       if(isValidUserProc(p) && !defineNONE)
@@ -931,6 +941,48 @@ clearpteu(pde_t *pgdir, char *uva)
   *pte &= ~PTE_U;
 }
 
+
+pde_t*
+cowuvm(pde_t *pgdir, uint sz)
+{
+  pde_t *d;
+  pte_t *pte;
+  uint pa, i, flags;
+  char *mem;
+
+  if((d = setupkvm()) == 0)
+    return 0;
+  for(i = 0; i < sz; i += PGSIZE){
+    if((pte = walkpgdir(pgdir, (void *) i, 0)) == 0)
+      panic("cowuvm: pte should exist");
+    if(!(*pte & PTE_P))
+      panic("cowuvm: page not present");
+    //clear PTE_W and put PTE_COW
+    *pte |= PTE_COW;
+    *pte &= ~PTE_W;
+    pa = PTE_ADDR(*pte);
+    flags = PTE_FLAGS(*pte);
+    lcr3(V2P(pgdir)); //reinstall the page table
+    // if((mem = kalloc()) == 0)
+    //   goto bad;
+    // memmove(mem, (char*)P2V(pa), PGSIZE);
+    if(mappages(d, (void*)i, PGSIZE, V2P(mem), flags) < 0) {
+      // kfree(mem);
+      goto bad;
+    }
+    char *v=P2V(pa);
+    kIncRef(v);
+
+  }
+  lcr3(v2p(pgdir));
+  return d;
+
+bad:
+  freevm(d);
+  lcr3(v2p(pgdir));
+  return 0;
+}
+
 // Given a parent process's page table, create a copy
 // of it for a child.
 pde_t*
@@ -950,6 +1002,8 @@ copyuvm(pde_t *pgdir, uint sz)
       panic("copyuvm: page not present");
     pa = PTE_ADDR(*pte);
     flags = PTE_FLAGS(*pte);
+    //lcr3(V2P(pgdir)); // refresh //TODO: need it?
+
     if((mem = kalloc()) == 0)
       goto bad;
     memmove(mem, (char*)P2V(pa), PGSIZE);
@@ -958,10 +1012,12 @@ copyuvm(pde_t *pgdir, uint sz)
       goto bad;
     }
   }
+  lcr3(v2p(pgdir));
   return d;
 
 bad:
   freevm(d);
+  lcr3(v2p(pgdir));
   return 0;
 }
 

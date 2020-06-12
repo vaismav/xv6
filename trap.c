@@ -94,6 +94,7 @@ trap(struct trapframe *tf)
   // handleing page fault
   
   case T_PGFLT:
+  //TODO: see how to add the handle faulting COW
     myproc()->numOfPagedFault++;
     #ifndef NONE
         //andle the aging macanisem in NONE is not defined.

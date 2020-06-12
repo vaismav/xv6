@@ -17,12 +17,14 @@ int freePagesCounter=0;
 
 struct run {
   struct run *next;
+  int refrences;
 };
 
 struct {
   struct spinlock lock;
   int use_lock;
   struct run *freelist;
+  struct run ref[MAXPAGES]; //num of refrences for each page
 } kmem;
 
 
@@ -87,8 +89,10 @@ kfree(char *v)
 
   if(kmem.use_lock)
     acquire(&kmem.lock);
-  r = (struct run*)v;
+  r=&kmem.ref[V2P(v)/PGSIZE]; //r is the refrences for v page
+  //r = (struct run*)v;
   r->next = kmem.freelist;
+  r->refrences=0; //init the refrence count for this page
   kmem.freelist = r;
   //update counter
   freePagesCounter++; 
@@ -109,6 +113,7 @@ kalloc(void)
   r = kmem.freelist;
   if(r)
     kmem.freelist = r->next;
+    r->refrences=1; //allocated page has 1 refrence to it
   //update counter
   freePagesCounter--;
   if(kmem.use_lock)
@@ -116,3 +121,34 @@ kalloc(void)
   return (char*)r;
 }
 
+//increase num of refrences for a page
+void
+kIncRef(char *v){
+  struct run *r;
+
+  if(kmem.use_lock)
+    acquire(&kmem.lock);
+  r=&kmem.ref[V2P(v)/PGSIZE]; //r is the refrences for v page
+  r->refrences++;
+  if(kmem.use_lock)
+    release(&kmem.lock);
+}
+//decrease num of refrences for a page
+void
+kDecRef(char *v){
+    struct run *r;
+
+  if(kmem.use_lock)
+    acquire(&kmem.lock);
+  r=&kmem.ref[V2P(v)/PGSIZE]; //r is the refrences for v page
+  r->refrences--;
+  if(kmem.use_lock)
+    release(&kmem.lock);
+}
+//get refrences for a spesific page
+int
+kGetRef(char *v){
+  struct run *r;
+  r=&kmem.ref[V2P(v)/PGSIZE]; //r is the refrences for v page
+  return r->refrences;
+}

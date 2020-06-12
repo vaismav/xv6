@@ -411,13 +411,24 @@ fork(void)
   if(0) cprintf("proc.c: fork: PID %d allocated process, pages in memory=%d\n",np->pid,np->pagesInMemory);
 
   // Copy process state from proc.
-  if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
-    if(0) cprintf("proc.c: fork: PID %d FAILED to copyuvm to np->pgdir, np->pid=5d \n",curproc->pid,np->pid);
+  if(COW){ //cow algorithm
+    if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
+      if(0) cprintf("proc.c: fork: PID %d FAILED to copyuvm to np->pgdir, np->pid=5d \n",curproc->pid,np->pid);
 
-    kfree(np->kstack);
-    np->kstack = 0;
-    np->state = UNUSED;
-    return -1;
+      kfree(np->kstack);
+      np->kstack = 0;
+      np->state = UNUSED;
+      return -1;
+    }
+  }else{
+    if((np->pgdir = cowuvm(curproc->pgdir, curproc->sz)) == 0){
+      if(0) cprintf("proc.c: fork: PID %d FAILED to copyuvm to np->pgdir, np->pid=5d \n",curproc->pid,np->pid);
+
+      kfree(np->kstack);
+      np->kstack = 0;
+      np->state = UNUSED;
+      return -1;
+    }
   }
   
   if(0) cprintf("proc.c: fork: PID %d copyied process state from proc, pages in memory=%d\n",np->pid,np->pagesInMemory);

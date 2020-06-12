@@ -8,6 +8,12 @@
 #include "proc.h"
 
 int
+sys_getNumFreePages(void)
+{
+return currFreePages();
+}
+
+int
 sys_fork(void)
 {
   return fork();

@@ -81,6 +81,10 @@ void            kinit2(void*, void*);
 //OUR
 int             currFreePages(void);
 int             totalFreePages(void);
+void            kDecRef(char*);
+void            kIncRef(char*);
+int             kGetRef(char*);
+
 
 // kbd.c
 void            kbdintr(void);

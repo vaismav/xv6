@@ -11,6 +11,7 @@ typedef uint pde_t;
 #define AL_PAGES 32  // pages of process
 #define OCCUPIED 1
 #define UNOCCUPIED 0
+#define COW 1 //cow
 
 
 
