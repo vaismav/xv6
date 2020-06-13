@@ -793,7 +793,7 @@ createSwapFile(struct proc* p)
 int
 writeToSwapFile(struct proc * p, char* buffer, uint placeOnFile, uint size)
 {
-  if(0) cprintf("fs.c: writeToSwapFile: PID %d wrote to file after fork ,pages in memory= %d\n",p->pid,p->pagesInMemory);
+  if(1 && DEBUG) cprintf("fs.c: writeToSwapFile: PID %d wrote to file after fork ,pages in memory= %d\n",p->pid,p->pagesInMemory);
   p->swapFile->off = placeOnFile;
 
   return filewrite(p->swapFile, buffer, size);
@@ -804,7 +804,7 @@ writeToSwapFile(struct proc * p, char* buffer, uint placeOnFile, uint size)
 int
 readFromSwapFile(struct proc * p, char* buffer, uint placeOnFile, uint size)
 {
-  if(0) cprintf("fs.c: readFromSwapFile: PID %d wrote to file after fork ,pages in memory= %d\n",p->pid,p->pagesInMemory);
+  if(1 && DEBUG) cprintf("fs.c: readFromSwapFile: PID %d wrote to file after fork ,pages in memory= %d\n",p->pid,p->pagesInMemory);
   p->swapFile->off = placeOnFile;
 
   return fileread(p->swapFile, buffer,  size);

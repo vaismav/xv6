@@ -34,7 +34,7 @@ exec(char *path, char **argv)
   struct proghdr ph;
   pde_t *pgdir, *oldpgdir;
   struct proc *curproc = myproc();
-  if(0) cprintf("exec.c: PID %d enter exec\n",curproc->pid); 
+  if(1 && DEBUG) cprintf("exec.c: PID %d enter exec\n",curproc->pid); 
 
   begin_op();
 
@@ -94,7 +94,7 @@ exec(char *path, char **argv)
       goto bad;
     if(ph.vaddr + ph.memsz < ph.vaddr)
       goto bad;
-    if(0) cprintf("exec.c: Load program into memory: PID %d about to sz = allocuvm ,  current pages in memory=%d\n",curproc->pid,curproc->pagesInMemory);
+    if(1 && DEBUG) cprintf("exec.c: Load program into memory: PID %d about to sz = allocuvm ,  current pages in memory=%d\n",curproc->pid,curproc->pagesInMemory);
     if((sz = allocuvm(pgdir, sz, ph.vaddr + ph.memsz)) == 0)
       goto bad;
     if(ph.vaddr % PGSIZE != 0)
@@ -179,7 +179,7 @@ exec(char *path, char **argv)
   curproc->tf->esp = sp;
   switchuvm(curproc);
   freevm(oldpgdir);
-  if(0) cprintf("exec.c: PID %d SUCCCESSFULY exec \n",curproc->pid); 
+  if(1 && DEBUG) cprintf("exec.c: PID %d SUCCCESSFULY exec \n",curproc->pid); 
   return 0;
 
  bad:
@@ -216,7 +216,7 @@ exec(char *path, char **argv)
         }
       }       
   }
-  if(0) cprintf("exec.c: PID %d FAILED to exec\n",curproc->pid); 
+  if(1 && DEBUG) cprintf("exec.c: PID %d FAILED to exec\n",curproc->pid); 
   return -1;
 }
 

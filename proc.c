@@ -101,17 +101,17 @@ handle_aging_counter(struct proc* p){
   #endif
   
   if(nfuaOrLapa){
-    if(1) cprintf("proc.c: handle_aging_counter:NFUA/LAPA: p->pid %d start aging\n",p->pid);
+    if(1 && DEBUG) cprintf("proc.c: handle_aging_counter:NFUA/LAPA: p->pid %d start aging\n",p->pid);
 
     acquire(&ptable.lock);
     for (int i = 0; i < MAX_PSYC_PAGES; i++){
       //not accessd - shift right by 1 bit
       if(p->memoryPages[i].is_occupied){
-        if(0) cprintf("proc.c: handle_aging_counter:NFUA/LAPA: p->pid %d page 0x%x is in index %d \tage 0x%x\n",p->pid,p->memoryPages[i].va,i,p->memoryPages[i].age);   
+        if(1 && DEBUG) cprintf("proc.c: handle_aging_counter:NFUA/LAPA: p->pid %d page 0x%x is in index %d \tage 0x%x\n",p->pid,p->memoryPages[i].va,i,p->memoryPages[i].age);   
         p->memoryPages[i].age = p->memoryPages[i].age >> 1;   
         //accessd - shift right by 1 bit & add 1 to msb
         if(checkPTE_A(p,p->memoryPages[i].va)){
-          if(1) cprintf("proc.c: handle_aging_counter:NFUA/LAPA: p->pid %d page 0x%x was accsessed\n",p->pid,p->memoryPages[i].va);
+          if(1 && DEBUG) cprintf("proc.c: handle_aging_counter:NFUA/LAPA: p->pid %d page 0x%x was accsessed\n",p->pid,p->memoryPages[i].va);
           p->memoryPages[i].age |= 0x80000000; 
         }
       }
@@ -125,7 +125,7 @@ handle_aging_counter(struct proc* p){
     //takes the tail
 
     //debug
-    if(1){
+    if(1 && DEBUG){
       cprintf("proc.c: handle_aging_counter:AQ: p->pid %d start passing on the pages queue\n",p->pid);
       printMemoryPagesQueue(p);
     }
@@ -137,7 +137,7 @@ handle_aging_counter(struct proc* p){
       if(p->memoryPages[index].is_occupied){
         if(checkPTE_A(p,p->memoryPages[index].va)){
           
-          if(1) cprintf("proc.c: handle_aging_counter:AQ: p->pid %d page 0x%x was accsessed\n",p->pid,p->memoryPages[index].va);
+          if(1 && DEBUG) cprintf("proc.c: handle_aging_counter:AQ: p->pid %d page 0x%x was accsessed\n",p->pid,p->memoryPages[index].va);
           //as long as index isnt the tail, switching the link with its next
           if(index!=p->tailOfMemoryPages){
 
@@ -179,7 +179,7 @@ handle_aging_counter(struct proc* p){
             
           }
           
-          // if(1){
+          // if(1 && DEBUG){
           //   cprintf("proc.c: handle_aging_counter:AQ: p->pid %d new queue state:\n",p->pid);
           //   printMemoryPagesQueue(p);
           // }
@@ -286,7 +286,7 @@ found:
   p->pid = nextpid++;
 
   release(&ptable.lock);
-  if(0) cprintf("proc.c: allocproc: PID %d start initializing proc  current pages in memory=%d\n",p->pid,p->pagesInMemory);
+  if(1 && DEBUG) cprintf("proc.c: allocproc: PID %d start initializing proc  current pages in memory=%d\n",p->pid,p->pagesInMemory);
 
   // Allocate kernel stack.
   if((p->kstack = kalloc()) == 0){
@@ -330,7 +330,7 @@ found:
       p->numOfPagedFault=0;
       p->numOfPagedOut=0;
 
-      if(0) cprintf("proc.c: allocproc: PID %d about to initialize p->pagesInMemory=0 ,  current pages in memory=%d\n",p->pid,p->pagesInMemory);
+      if(1 && DEBUG) cprintf("proc.c: allocproc: PID %d about to initialize p->pagesInMemory=0 ,  current pages in memory=%d\n",p->pid,p->pagesInMemory);
     }
   #endif
 
@@ -388,7 +388,7 @@ growproc(int n)
     if((sz = allocuvm(curproc->pgdir, sz, sz + n)) == 0)
       return -1;
   } else if(n < 0){
-    if(0) cprintf("proc.c: growproc: PID %d about to deallocuvm ,  current pages in memory=%d\n",curproc->pid,curproc->pagesInMemory);
+    if(1 && DEBUG) cprintf("proc.c: growproc: PID %d about to deallocuvm ,  current pages in memory=%d\n",curproc->pid,curproc->pagesInMemory);
     if((sz = deallocuvm(curproc->pgdir, sz, sz + n)) == 0)
       return -1;
   }
@@ -409,15 +409,15 @@ fork(void)
 
   // Allocate process.
   if((np = allocproc()) == 0){
-    if(0) cprintf("proc.c: fork: PID %d Failed to allocproc() new proc \n",curproc->pid);
+    if(1 && DEBUG) cprintf("proc.c: fork: PID %d Failed to allocproc() new proc \n",curproc->pid);
     return -1;
   }
-  if(0) cprintf("proc.c: fork: PID %d allocated process, pages in memory=%d\n",np->pid,np->pagesInMemory);
+  if(1 && DEBUG) cprintf("proc.c: fork: PID %d allocated process, pages in memory=%d\n",np->pid,np->pagesInMemory);
 
   // Copy process state from proc.
   if(COW){ //cow algorithm
-    if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
-      if(0) cprintf("proc.c: fork: PID %d FAILED to copyuvm to np->pgdir, np->pid=5d \n",curproc->pid,np->pid);
+    if((np->pgdir = cowuvm(curproc->pgdir, curproc->sz)) == 0){
+      if(1 && DEBUG) cprintf("proc.c: fork: PID %d FAILED to copyuvm to np->pgdir, np->pid=5d \n",curproc->pid,np->pid);
 
       kfree(np->kstack);
       np->kstack = 0;
@@ -425,8 +425,8 @@ fork(void)
       return -1;
     }
   }else{
-    if((np->pgdir = cowuvm(curproc->pgdir, curproc->sz)) == 0){
-      if(0) cprintf("proc.c: fork: PID %d FAILED to copyuvm to np->pgdir, np->pid=5d \n",curproc->pid,np->pid);
+    if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
+      if(1 && DEBUG) cprintf("proc.c: fork: PID %d FAILED to copyuvm to np->pgdir, np->pid=5d \n",curproc->pid,np->pid);
 
       kfree(np->kstack);
       np->kstack = 0;
@@ -435,7 +435,7 @@ fork(void)
     }
   }
   
-  if(0) cprintf("proc.c: fork: PID %d copyied process state from proc, pages in memory=%d\n",np->pid,np->pagesInMemory);
+  if(1 && DEBUG) cprintf("proc.c: fork: PID %d copyied process state from proc, pages in memory=%d\n",np->pid,np->pagesInMemory);
   np->sz = curproc->sz;
   np->parent = curproc;
   *np->tf = *curproc->tf;
@@ -452,7 +452,7 @@ fork(void)
 
   pid = np->pid;
   #ifndef NONE
-    if(0) cprintf("proc.c: fork: PID %d before start of copy pages data, pages in memory=%d\n",np->pid,np->pagesInMemory);
+    if(1 && DEBUG) cprintf("proc.c: fork: PID %d before start of copy pages data, pages in memory=%d\n",np->pid,np->pagesInMemory);
     // START OF copy pages data
     np->pagesInMemory=curproc->pagesInMemory;
     np->pagesInSwap=curproc->pagesInSwap;
@@ -462,12 +462,12 @@ fork(void)
     np->numOfPagedFault=0;
     //the swapFile of child is like the swapFile of parent
       
-    if(0) cprintf("proc.c: fork: PID %d np->pid = %d\n",curproc->pid,np->pid);
+    if(1 && DEBUG) cprintf("proc.c: fork: PID %d np->pid = %d\n",curproc->pid,np->pid);
 
     // copy the entire swapfile to the new proc
     if(curproc->pid > 2){
       char buffer[PGSIZE/2]=""; 
-      if(0) cprintf("proc.c: fork: size of buffer in fork: %d\n", sizeof(buffer));
+      if(1 && DEBUG) cprintf("proc.c: fork: size of buffer in fork: %d\n", sizeof(buffer));
       int numRead=0;
       int placeOnFile=0;
       while((numRead=readFromSwapFile(curproc,buffer,placeOnFile,sizeof(buffer)))){ //have something to read
@@ -483,7 +483,7 @@ fork(void)
   #endif
 
   // END OF copy pages data
-  if(0) cprintf("proc.c: fork: PID %d SUCCESSFULY created new proc np->pid =%d, np->pagesInMemory=%d\n",curproc->pid,np->pid,np->pagesInMemory);
+  if(1 && DEBUG) cprintf("proc.c: fork: PID %d SUCCESSFULY created new proc np->pid =%d, np->pagesInMemory=%d\n",curproc->pid,np->pid,np->pagesInMemory);
   acquire(&ptable.lock);
 
   np->state = RUNNABLE;
@@ -508,7 +508,7 @@ exit(void)
   //closeing swapfile
   #ifndef NONE  
     if(!(curproc->pid==1||curproc->parent->pid==1)){//NOT shell or init
-      if(0) cprintf("proc.c: exit: PID %d about to remove swapFile\n",curproc->pid);
+      if(1 && DEBUG) cprintf("proc.c: exit: PID %d about to remove swapFile\n",curproc->pid);
 
       if(curproc->pid > 2 && removeSwapFile(curproc)!=0)
           panic("proc.c: exit: couldnt remove swapFile");
@@ -570,7 +570,7 @@ wait(void)
         pid = p->pid;
         kfree(p->kstack);
         p->kstack = 0;
-        if(0) cprintf("proc.c: wait: PID %d about to enter freevm for p->pid= %d, p->pagesInMemory=%d\n",curproc->pid, p->pid,p->pagesInMemory);
+        if(1 && DEBUG) cprintf("proc.c: wait: PID %d about to enter freevm for p->pid= %d, p->pagesInMemory=%d\n",curproc->pid, p->pid,p->pagesInMemory);
 
         freevm(p->pgdir);
         p->pid = 0;
@@ -619,7 +619,7 @@ scheduler(void)
       // #ifndef NONE
       //   //andle the aging macanisem in NONE is not defined.
       //   if(p->state != UNUSED && p->pid > 2 ){
-      //     if(1) cprintf("proc.c: scheduler: p->pid %d NONE is NOT defined, about to handle_aging_counter\n",p->pid);
+      //     if(1 && DEBUG) cprintf("proc.c: scheduler: p->pid %d NONE is NOT defined, about to handle_aging_counter\n",p->pid);
       //     handle_aging_counter(p); 
       //   }
       // #endif

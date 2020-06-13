@@ -50,7 +50,7 @@ kinit1(void *vstart, void *vend)
   initlock(&kmem.lock, "kmem");
   kmem.use_lock = 0;
   freerange(vstart, vend);
-  //update totalFreePages
+  //update totalFreePages MAYAs changges
   tFreePages+= (PGROUNDDOWN((uint)vend) - PGROUNDUP((uint)vstart))/PGSIZE; 
 }
 
@@ -71,6 +71,7 @@ freerange(void *vstart, void *vend)
   for(; p + PGSIZE <= (char*)vend; p += PGSIZE)
     kfree(p);
 }
+
 //PAGEBREAK: 21
 // Free the page of physical memory pointed at by v,
 // which normally should have been returned by a
@@ -89,8 +90,8 @@ kfree(char *v)
 
   if(kmem.use_lock)
     acquire(&kmem.lock);
-  r=&kmem.ref[V2P(v)/PGSIZE]; //r is the refrences for v page
-  //r = (struct run*)v;
+  // r=&kmem.ref[V2P(v)/PGSIZE]; //r is the refrences for v page
+  r = (struct run*)v;
   r->next = kmem.freelist;
   r->refrences=0; //init the refrence count for this page
   kmem.freelist = r;
@@ -113,10 +114,10 @@ kalloc(void)
   r = kmem.freelist;
   if(r){
     kmem.freelist = r->next;
-    r->refrences=1; //allocated page has 1 refrence to it
+    // r->refrences=1; //allocated page has 1 refrence to it
   }
   //update counter
-  freePagesCounter--;
+   freePagesCounter--;
   if(kmem.use_lock)
     release(&kmem.lock);
   return (char*)r;
