@@ -10,7 +10,7 @@
 int
 sys_getNumFreePages(void)
 {
-return currFreePages();
+return getNumFreePages();
 }
 
 int

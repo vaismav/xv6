@@ -540,6 +540,66 @@ loadPageToMemory(uint address){
   return 0;
 }
 
+void
+handle_write_fault(void){
+  pte_t *pte; //entry in page table of the faulting page
+  uint pa;    //physical addres of faulting page
+  uint pan;   //physihandle_page_faultcal addres of new page
+  uint va = rcr2(); //faulting virtual address 
+  char *v;  //begining of virtual addres of faulting page
+  uint error = myproc()->tf->err; //the error
+  uint flags;
+  char *mem; // will be the adress of our new page if neseccery
+
+  char *a = (char*)PGROUNDDOWN((uint)va); //start of the faulty page
+  //if in kernal - kill
+  if(va >= KERNBASE || (pte = walkpgdir(myproc()->pgdir, a, 0)) == 0){
+    myproc()->killed = 1;
+    panic("vm.c: handle_write_fault: kernal page");
+    return;
+  }
+  //writable page fault
+  if(error & FEC_WR){ 
+    //if not dealing with COW - dont care
+    if(!(*pte & PTE_COW)){ 
+      myproc()->killed = 1;
+      panic("vm.c: handle_write_fault: not COW");
+      return;
+    }
+    else{ 
+      //if dealing with COW
+      pa = PTE_ADDR(*pte); 
+      v = P2V(pa);
+      flags = PTE_FLAGS(*pte);
+      //check how many refeerance exisit to the page
+      int refrences =kGetRef(v);
+      //not just me
+      if(refrences>1){ 
+        //make a copy for myself
+        mem = kalloc(); //new page
+        memmove(mem, v, PGSIZE);
+        pan=V2P(mem); 
+        *pte = pan | flags | PTE_P | PTE_W; //writable 
+        lcr3(V2P(myproc()->pgdir)); 
+        // decresing the referance counter for v
+        kDecRef(v);
+      }
+      //only I have refrence to this page - make it writable
+      else{
+        *pte |= PTE_W; //writable
+        *pte &= ~PTE_COW;
+        lcr3(V2P(myproc()->pgdir)); 
+      }
+    }
+  }
+  //not writable page fault - dont care
+  else{ 
+      return;
+    }
+
+}
+
+
 // Set up CPU's kernel segment descriptors.
 // Run once on entry on each CPU.
 void
@@ -948,7 +1008,7 @@ cowuvm(pde_t *pgdir, uint sz)
   pde_t *d;
   pte_t *pte;
   uint pa, i, flags;
-  char *mem;
+
 
   if((d = setupkvm()) == 0)
     return 0;
@@ -966,20 +1026,19 @@ cowuvm(pde_t *pgdir, uint sz)
     // if((mem = kalloc()) == 0)
     //   goto bad;
     // memmove(mem, (char*)P2V(pa), PGSIZE);
-    if(mappages(d, (void*)i, PGSIZE, V2P(mem), flags) < 0) {
-      // kfree(mem);
+    if(mappages(d, (void*)i, PGSIZE, pa, flags) < 0) {
       goto bad;
     }
     char *v=P2V(pa);
     kIncRef(v);
 
   }
-  lcr3(v2p(pgdir));
+  lcr3(V2P(pgdir));
   return d;
 
 bad:
   freevm(d);
-  lcr3(v2p(pgdir));
+  lcr3(V2P(pgdir));
   return 0;
 }
 
@@ -1012,12 +1071,12 @@ copyuvm(pde_t *pgdir, uint sz)
       goto bad;
     }
   }
-  lcr3(v2p(pgdir));
+  lcr3(V2P(pgdir));
   return d;
 
 bad:
   freevm(d);
-  lcr3(v2p(pgdir));
+  lcr3(V2P(pgdir));
   return 0;
 }
 

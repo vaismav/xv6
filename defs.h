@@ -142,6 +142,7 @@ struct proc*    procOfpgdir(pde_t*);
 void            init_page_arrays(struct proc*);
 void            duplicate_page_arrays(struct proc*, struct proc*);
 void            handle_aging_counter(struct proc*);
+int             getNumFreePages(void);
 
 // swtch.S
 void            swtch(struct context**, struct context*);
@@ -193,9 +194,6 @@ void            uartintr(void);
 void            uartputc(int);
 
 // vm.c
-uint            getPTE(pde_t *pgdir, const void *va);
-int             loadPageToMemory(uint address);
-int             swapOut();
 void            seginit(void);
 void            kvmalloc(void);
 pde_t*          setupkvm(void);
@@ -210,9 +208,17 @@ void            switchuvm(struct proc*);
 void            switchkvm(void);
 int             copyout(pde_t*, uint, void*, uint);
 void            clearpteu(pde_t *pgdir, char *uva);
+//OURS
 int             pushToMemoryPagesArray(struct proc* p, uint va);
 int             checkPTE_A(struct proc*, uint);
 int             isValidUserProc(struct proc*p);
+uint            getPTE(pde_t *pgdir, const void *va);
+int             loadPageToMemory(uint address);
+int             swapOut();
+pde_t*          cowuvm(pde_t*, uint);
+void            handle_write_fault(void);
+
+
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))

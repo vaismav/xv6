@@ -4,6 +4,11 @@
 // Eflags register
 #define FL_IF           0x00000200      // Interrupt Enable
 
+//Page faults
+#define FEC_PR		0x00000001	// Page fault caused by protection violation
+#define FEC_WR		0x00000002	// Page fault caused by a write
+#define FEC_U	  	0x00000004	// Page fault occured while in user mode
+
 // Control Register flags
 #define CR0_PE          0x00000001      // Protection Enable
 #define CR0_WP          0x00010000      // Write Protect

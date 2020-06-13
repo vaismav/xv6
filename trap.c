@@ -113,17 +113,15 @@ trap(struct trapframe *tf)
       pte = (pte_t*)getPTE(myproc()->pgdir,(void*)address);
       if (*pte & PTE_P){
         //COW
-        // //if page is present
-        // //checks if page is writable
-        // if(!(PTE_W & PTE_FLAGS(pte[PTX(address)]))){
-        //   myproc()->tf = tf;
-        //   handle_write_fault();
-        //   if(myproc()->killed)
-        //     exit();
-        //   break;
-        // }
+        //if page is present and not writable
+        if(!(PTE_W & PTE_FLAGS(pte[PTX(address)]))){
+          myproc()->tf = tf;
+          handle_write_fault();
+          if(myproc()->killed)
+            exit();
+          break;
+        }
       }
-      // if page is not present but in swap
       else if(*pte & PTE_PG){
         if(0 && myproc() != 0) cprintf("trap.c: trap: PID %d: pagefault, page is in swap on address 0x%x\n ",myproc()->pid, address);
         loadPageToMemory(address);

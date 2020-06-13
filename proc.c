@@ -20,6 +20,10 @@ extern void trapret(void);
 
 static void wakeup1(void *chan);
 
+int
+getNumFreePages(void){
+  return currFreePages();
+}
 
 // gets a proc and print its 
 // memory pages queue from

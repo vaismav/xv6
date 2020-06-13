@@ -111,9 +111,10 @@ kalloc(void)
   if(kmem.use_lock)
     acquire(&kmem.lock);
   r = kmem.freelist;
-  if(r)
+  if(r){
     kmem.freelist = r->next;
     r->refrences=1; //allocated page has 1 refrence to it
+  }
   //update counter
   freePagesCounter--;
   if(kmem.use_lock)
