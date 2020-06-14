@@ -94,9 +94,6 @@ trap(struct trapframe *tf)
   // handleing page fault
   
   case T_PGFLT:
-    if(!defineNONE){
-    //TODO: see how to add the handle faulting COW
-    myproc()->numOfPagedFault++;
     // #ifndef NONE
     //     //andle the aging macanisem in NONE is not defined.
     //     if( isValidUserProc(myproc()) ){
@@ -104,38 +101,42 @@ trap(struct trapframe *tf)
     //       handle_aging_counter(myproc()); 
     //     }
     // #endif
+    //TODO: see how to add the handle faulting COW
+    myproc()->numOfPagedFault++;
     
-      address = rcr2();
-      if(1 && DEBUG && myproc() != 0) cprintf("trap.c: trap: PID %d: T_PGFLT on address 0x%x\n ",myproc()->pid,address);
+    address = rcr2();
+    if(1 && DEBUG && myproc() != 0) cprintf("trap.c: trap: PID %d: T_PGFLT on address 0x%x\n ",myproc()->pid,address);
     //1) in swap file - need to swap back to pysical memory
     //2) not it pgdir - need to create
     //3) RO - first p try to write -> make writeable copy
     //        second p try to write -> make W and try writung again
-      pte = (pte_t*)getPTE(myproc()->pgdir,(void*)address);
-      if (*pte & PTE_P){
-        if(COW){
-          //COW
-          //if page is present and not writable
-          if(!(PTE_W & PTE_FLAGS(pte[PTX(address)]))){
-            myproc()->tf = tf;
-            handle_write_fault();
-            if(myproc()->killed)
-              exit();
-            break;
-          }
+    pte = (pte_t*)getPTE(myproc()->pgdir,(void*)address);
+    if (*pte & PTE_P){
+      //if /*cow is active*/ /*page isnt writable*/ /*page can be accessed by user*/
+      if(COW && !(*pte & PTE_W) && (*pte & PTE_U) && (*pte & PTE_COW)){
+        //COW
+        //if page is present and not writable
+        if(!(PTE_W & PTE_FLAGS(pte[PTX(address)]))){
+          myproc()->tf = tf;
+          // handle_write_fault(address);
+          handle_COW_write_fault(myproc(),address); 
+          if(myproc()->killed)
+            exit();
+          break;
         }
       }
-      else if(*pte & PTE_PG){
-        if(1 && DEBUG && myproc() != 0) cprintf("trap.c: trap: PID %d: pagefault, page is in swap on address 0x%x\n ",myproc()->pid, address);
-        loadPageToMemory(address);
-        break;
-      }
+    }else if(!defineNONE && (*pte & PTE_PG) /*& !(*pte & PTE_P)*/){
+      if(1 && DEBUG && myproc() != 0) cprintf("trap.c: trap: PID %d: pagefault, page is in swap on address 0x%x\n ",myproc()->pid, address);
+      loadPageToMemory(address);
+      break;
+    }
       //we dont break this case
       // so if T_PGFAULT isnt becaus the page is in swap, than the algorithem behave normally
       //if we've reached here we are about to get trap
       if(myproc()!=0) cprintf("PID %d: ",myproc()->pid);
       cprintf("trap.c: trap: T_PGFLT we couldnt cach, address 0x%x *pte=0x%x\n",address,*pte);
-    }
+      panic("panicccc");
+    
     
 
 

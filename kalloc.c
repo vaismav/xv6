@@ -114,15 +114,52 @@ kalloc(void)
   r = kmem.freelist;
   if(r){
     kmem.freelist = r->next;
-    // r->refrences=1; //allocated page has 1 refrence to it
+     r->refrences=1; //allocated page has 1 refrence to it
   }
   //update counter
    freePagesCounter--;
   if(kmem.use_lock)
     release(&kmem.lock);
+
+  if((1 &&  DEBUG)|| KDEBUG ) cprintf("kalloc.c: kallocWithRef: create first ref to pa 0x%x, currnet ref number = %d\n",V2P(r),r->refrences);
+
   return (char*)r;
 }
 
+// Allocate one 4096-byte page of physical memory.
+// Returns a pointer that the kernel can use.
+// Returns 0 if the memory cannot be allocated.
+char*
+kallocWithRef(void)
+{
+  struct run *r;
+  // char* v = kalloc();
+  // if(kmem.use_lock)
+  //   acquire(&kmem.lock);
+  // r=&kmem.ref[V2P(v)/PGSIZE]; //r is the refrences for v page
+  // r->refrences=1;
+  // if(kmem.use_lock)
+  //   release(&kmem.lock);
+  
+
+  if(kmem.use_lock)
+    acquire(&kmem.lock);
+  r = kmem.freelist;
+  if(r){
+    kmem.freelist = r->next;
+    r->refrences=1; //allocated page has 1 refrence to it
+  }
+  //update counter
+   freePagesCounter--;
+  if(kmem.use_lock)
+    release(&kmem.lock);
+
+  if((1 &&  DEBUG)|| KDEBUG ) cprintf("kalloc.c: kallocWithRef: create first ref to pa 0x%x, currnet ref number = %d\n",V2P(r),r->refrences);
+
+  return (char*)r;
+}
+
+//get virtual adress to increase refrences
 //increase num of refrences for a page
 void
 kIncRef(char *v){
@@ -134,19 +171,31 @@ kIncRef(char *v){
   r->refrences++;
   if(kmem.use_lock)
     release(&kmem.lock);
+  if((1 &&  DEBUG)|| KDEBUG ) cprintf("kalloc.c: kIncRef: increased pa 0x%x, currnet ref number = %d\n",V2P(v),r->refrences);
 }
-//decrease num of refrences for a page
+
+//  get virtual address to decrese the ref count of the 
+//  physical address relate to it
+//  decrease num of refrences for a page
+//  if after decreasing, ref count = 0 than free the physical page
 void
 kDecRef(char *v){
     struct run *r;
 
   if(kmem.use_lock)
     acquire(&kmem.lock);
-  r=&kmem.ref[V2P(v)/PGSIZE]; //r is the refrences for v page
+  r=&kmem.ref[V2P(v)/PGSIZE]; //r is the struct of the page
   r->refrences--;
   if(kmem.use_lock)
     release(&kmem.lock);
+  if((1 &&  DEBUG)|| KDEBUG ) cprintf("kalloc.c: kDecRef: decreased pa 0x%x, currnet ref number = %d\n",V2P(v),r->refrences);
+  if(r->refrences <= 0){
+    if((1 &&  DEBUG)|| KDEBUG ) cprintf("kalloc.c: kDecRef: free pa 0x%x, currnet ref number = %d\n",V2P(v),r->refrences);
+    kfree(v);
+  }
 }
+
+//get virtual address to return how many refrences 
 //get refrences for a spesific page
 int
 kGetRef(char *v){

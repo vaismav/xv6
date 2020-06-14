@@ -412,21 +412,21 @@ fork(void)
     if(1 && DEBUG) cprintf("proc.c: fork: PID %d Failed to allocproc() new proc \n",curproc->pid);
     return -1;
   }
-  if(1 && DEBUG) cprintf("proc.c: fork: PID %d allocated process, pages in memory=%d\n",np->pid,np->pagesInMemory);
+  if(1 && DEBUG) cprintf("proc.c: fork: np->pid %d allocated process, pages in memory=%d\n",np->pid,np->pagesInMemory);
 
   // Copy process state from proc.
-  if(COW){ //cow algorithm
-    if((np->pgdir = cowuvm(curproc->pgdir, curproc->sz)) == 0){
-      if(1 && DEBUG) cprintf("proc.c: fork: PID %d FAILED to copyuvm to np->pgdir, np->pid=5d \n",curproc->pid,np->pid);
+  if(COW && curproc->pid>2){ //cow algorithm
+      if((np->pgdir = cowuvm(curproc->pgdir, curproc->sz)) == 0){
+        if(1 && DEBUG) cprintf("proc.c: fork: PID %d FAILED to copyuvm to np->pgdir, np->pid=%d \n",curproc->pid,np->pid);
 
-      kfree(np->kstack);
-      np->kstack = 0;
-      np->state = UNUSED;
-      return -1;
-    }
+        kfree(np->kstack);
+        np->kstack = 0;
+        np->state = UNUSED;
+        return -1;
+      }
   }else{
     if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
-      if(1 && DEBUG) cprintf("proc.c: fork: PID %d FAILED to copyuvm to np->pgdir, np->pid=5d \n",curproc->pid,np->pid);
+      if(1 && DEBUG) cprintf("proc.c: fork: PID %d FAILED to copyuvm to np->pgdir, np->pid=%d \n",curproc->pid,np->pid);
 
       kfree(np->kstack);
       np->kstack = 0;
@@ -435,7 +435,7 @@ fork(void)
     }
   }
   
-  if(1 && DEBUG) cprintf("proc.c: fork: PID %d copyied process state from proc, pages in memory=%d\n",np->pid,np->pagesInMemory);
+  if(1 && DEBUG) cprintf("proc.c: fork: np->pid %d copyied process state from proc, pages in memory=%d\n",np->pid,np->pagesInMemory);
   np->sz = curproc->sz;
   np->parent = curproc;
   *np->tf = *curproc->tf;
@@ -452,7 +452,7 @@ fork(void)
 
   pid = np->pid;
   #ifndef NONE
-    if(1 && DEBUG) cprintf("proc.c: fork: PID %d before start of copy pages data, pages in memory=%d\n",np->pid,np->pagesInMemory);
+    if(1 && DEBUG) cprintf("proc.c: fork: np->pid %d before start of copy pages data, pages in memory=%d\n",np->pid,np->pagesInMemory);
     // START OF copy pages data
     np->pagesInMemory=curproc->pagesInMemory;
     np->pagesInSwap=curproc->pagesInSwap;

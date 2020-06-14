@@ -84,6 +84,7 @@ int             totalFreePages(void);
 void            kDecRef(char*);
 void            kIncRef(char*);
 int             kGetRef(char*);
+char*           kallocWithRef(void);
 
 
 // kbd.c
@@ -216,7 +217,7 @@ uint            getPTE(pde_t *pgdir, const void *va);
 int             loadPageToMemory(uint address);
 int             swapOut();
 pde_t*          cowuvm(pde_t*, uint);
-void            handle_write_fault(void);
+void            handle_COW_write_fault(struct proc*, uint);
 
 
 

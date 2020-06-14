@@ -341,6 +341,7 @@ findInSwap(struct proc* p,uint va){
     if(p->swapPages[i].is_occupied && p->swapPages[i].va == pageVA)
       index = i;
   }
+  
   return index;
 }
 
@@ -437,7 +438,11 @@ swapOut(struct proc* p){
   *pte &= ~PTE_A;
 
   //free the page on the pysic space
-  kfree(P2V(PTE_ADDR(*pte)));
+  if(COW)
+    kDecRef(P2V(PTE_ADDR(*pte)));
+  else
+    kfree(P2V(PTE_ADDR(*pte)));
+
   //refresh RC3 (TLB)
   lcr3(V2P(p->pgdir));
   //remove from p->memoryPages[]
@@ -488,7 +493,11 @@ loadPageToMemory(uint address){
     return -1;
   }
   //alocating page in pysic memory
-  mem=kalloc();
+  if(COW) 
+    mem = kallocWithRef();
+  else
+    mem = kalloc();
+    
   if(mem == 0){
     cprintf("vm.c: loadPageToMemory: PID %d:  failed to allocate pysic memory\n",p->pid);
     return -1;
@@ -501,7 +510,10 @@ loadPageToMemory(uint address){
   //   // copy from swap to buffer
     if(readFromSwapFile(p, mem, indexInSwap*PGSIZE , PGSIZE)  != PGSIZE){
       cprintf("vm.c: loadPageToMemory: PID %d:  failed to copy from swapfile to buffer\n",p->pid);
-      kfree(mem);
+      if(COW)
+        kDecRef(mem);
+      else
+        kfree(mem);
       return -1;
     }
     // copy from buffer to pysicl memory
@@ -515,7 +527,10 @@ loadPageToMemory(uint address){
   pte=(pte_t*)walkpgdir(p->pgdir,(void*)address,0);
   if(pte == 0){
     cprintf("vm.c: loadPageToMemory: PID %d:  couldnt find the address pte\n",p->pid);
-    kfree(mem);
+    if(COW)
+      kDecRef(mem);
+    else
+      kfree(mem);
     return -1;
   }
   //put pysc address in pte with pte current plags and set PTE_P
@@ -527,7 +542,10 @@ loadPageToMemory(uint address){
   if(1 && DEBUG) cprintf("vm.c: loadPageToMemory: PID %d:  about to pushToMemoryPagesArray va =0x%x\n",p->pid,page_va);
   if(pushToMemoryPagesArray(p,page_va) < 0){
     cprintf("vm.c: loadPageToMemory: PID %d:  failed to push page to p->memoryPages[]\n",p->pid);
-    kfree(mem);
+    if(COW)
+      kDecRef(mem);
+    else
+      kfree(mem);
     return -1;
   }
   if(1 && DEBUG) cprintf("vm.c: loadPageToMemory: PID %d:  SUCCESSFULY pushToMemoryPagesArray va =0x%x\n",p->pid,page_va);
@@ -540,14 +558,14 @@ loadPageToMemory(uint address){
   return 0;
 }
 
+//gets a uint of the faulting page
 void
-handle_write_fault(void){
+handle_write_fault(uint va){
   pte_t *pte; //entry in page table of the faulting page
   uint pa;    //physical addres of faulting page
   uint pan;   //physihandle_page_faultcal addres of new page
-  uint va = rcr2(); //faulting virtual address 
+  //AVISHAI// uint va = rcr2(); //faulting virtual address 
   char *v;  //begining of virtual addres of faulting page
-  uint error = myproc()->tf->err; //the error
   uint flags;
   char *mem; // will be the adress of our new page if neseccery
 
@@ -559,7 +577,7 @@ handle_write_fault(void){
     return;
   }
   //writable page fault
-  if(error & FEC_WR){ 
+  if(FEC_WR){ 
     //if not dealing with COW - dont care
     if(!(*pte & PTE_COW)){ 
       myproc()->killed = 1;
@@ -596,6 +614,54 @@ handle_write_fault(void){
   else{ 
       return;
     }
+
+}
+
+void
+handle_COW_write_fault(struct proc *p, uint va){
+  pte_t *pte; //entry in page table of the faulting page
+  uint pa;    //physical addres of faulting page
+  uint pan;   //physical addres of new page
+  char *v;  //begining of virtual addres of faulting page
+  uint flags;
+  char *mem; // will be the adress of our new page if neseccery
+
+  char *a = (char*)PGROUNDDOWN((uint)va); //start of the faulty page
+  //if in kernal - kill
+  if(va >= KERNBASE || (pte = walkpgdir(p->pgdir, a, 0)) == 0){
+    p->killed = 1;
+    panic("vm.c: handle_write_fault: kernal page");
+    return;
+  }
+  
+  //if dealing with COW
+  pa = PTE_ADDR(*pte); 
+  v = P2V(pa);
+  flags = PTE_FLAGS(*pte);
+  //check how many refeerance exisit to the page
+  int refrences =kGetRef(v);
+  //not just me
+  if(refrences > 1){ 
+    //make a copy for myself
+    mem = kallocWithRef(); //new page
+    memmove(mem, v, PGSIZE);
+    pan=V2P(mem); 
+    *pte = pan | flags | PTE_P | PTE_W; //writable 
+    *pte &= ~PTE_COW; 
+    lcr3(V2P(p->pgdir)); 
+    // decresing the referance counter for v
+    kDecRef(v);
+  }
+  //only I have refrence to this page - make it writable
+  else if (refrences == 1){
+    *pte |= PTE_W; //writable
+    *pte &= ~PTE_COW;
+    lcr3(V2P(p->pgdir)); 
+  }
+  else{
+    cprintf("vm.c: handle COW write fault: PID %d: about to panic on page va 0x%x , *pte= 0x%x pysical address=0x%x\n",myproc()->pid,a,*pte, V2P(v));
+    panic("vm.c: handle COW write fault: pa ref < 1");
+  }
 
 }
 
@@ -795,7 +861,12 @@ inituvm(pde_t *pgdir, char *init, uint sz)
 
   if(sz >= PGSIZE)
     panic("inituvm: more than a page");
-  mem = kalloc();
+  if(COW)
+    mem=kallocWithRef();
+  else
+    mem = kalloc();
+    
+  
   memset(mem, 0, PGSIZE);
   mappages(pgdir, 0, PGSIZE, V2P(mem), PTE_W|PTE_U);
   memmove(mem, init, sz);
@@ -870,7 +941,11 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       //if process doesnt have 16 pages or more, it proceed.
     }
 
-    mem = kalloc();
+    if(COW) 
+      mem = kallocWithRef();
+    else
+      mem = kalloc();
+
     //checks if p is initialized
     // if it does, increase the pages count of the process
     // we do it here because de
@@ -885,7 +960,10 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
     if(mappages(pgdir, (char*)a, PGSIZE, V2P(mem), PTE_W|PTE_U) < 0){
       cprintf("allocuvm out of memory (2)\n");
       deallocuvm(pgdir, newsz, oldsz);
-      kfree(mem);
+      if(COW)
+        kDecRef(mem);
+      else
+        kfree(mem);
       return 0;
     }
      //if successfuly allocat the page and p-Pid > 2 update the coresponding entry
@@ -951,12 +1029,7 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       char *v = P2V(pa);
       if(COW){
         //if there is only one refrence - can be deleted
-        if(kGetRef(v)==1)
-          kfree(v);
-        else{
-          //if there is more then one refrence - decrease
-          kDecRef(v);
-        }
+        kDecRef(v);   
       }else{
         kfree(v);
       }
@@ -1036,22 +1109,34 @@ cowuvm(pde_t *pgdir, uint sz)
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walkpgdir(pgdir, (void *) i, 0)) == 0)
       panic("cowuvm: pte should exist");
-    if(!(*pte & PTE_P))
-      panic("cowuvm: page not present");
-    //clear PTE_W and put PTE_COW
-    *pte |= PTE_COW;
-    *pte &= ~PTE_W;
-    pa = PTE_ADDR(*pte);
-    flags = PTE_FLAGS(*pte);
-    lcr3(V2P(pgdir)); //reinstall the page table
-    // if((mem = kalloc()) == 0)
-    //   goto bad;
-    // memmove(mem, (char*)P2V(pa), PGSIZE);
-    if(mappages(d, (void*)i, PGSIZE, pa, flags) < 0) {
-      goto bad;
+    if(*pte & PTE_P){
+      //clear PTE_W and put PTE_COW
+      *pte |= PTE_COW;
+      *pte &= ~PTE_W;
+      pa = PTE_ADDR(*pte);
+      flags = PTE_FLAGS(*pte);
+      lcr3(V2P(pgdir)); //reinstall the page table
+      // if((mem = kalloc()) == 0)
+      //   goto bad;
+      // memmove(mem, (char*)P2V(pa), PGSIZE);
+      if(mappages(d, (void*)i, PGSIZE, pa, flags) < 0) {
+        goto bad;
+      }
+      char *v=P2V(pa);
+      kIncRef(v);
     }
-    char *v=P2V(pa);
-    kIncRef(v);
+    //copy pte of page in swapFile
+    else if(*pte & PTE_PG){
+      pa = -1;// an address in the end of KERNBASE which is imposible to reach for the user
+      flags = PTE_FLAGS(*pte);
+      //if page is in swap, just copy its flags
+      if(mappages(d, (void*)i, PGSIZE, pa, flags) < 0) {
+        goto bad;
+      }
+    }
+    else{
+      panic("cowuvm: page not present");
+    }
 
   }
   lcr3(V2P(pgdir));

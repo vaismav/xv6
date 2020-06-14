@@ -18,8 +18,11 @@ main()
   }else if(pid==0){
       newNumOfPages=getNumFreePages();
       printf(1,"num of free pages after first fork %d, \n", newNumOfPages);
-      if(oldNumOfPages!=newNumOfPages)
-        printf(1,"the MOO is not working right - sould be the same num of free pages\n");
+      // if(oldNumOfPages!=newNumOfPages)
+      //   printf(1,"the MOO is not working right - sould be the same num of free pages\n");
     exit();
   }
+  wait();
+   printf(1,"cowtest: finished\n");
+  exit();
 }
