@@ -9,6 +9,8 @@
 #include "mmu.h"
 #include "spinlock.h"
 
+#define AVISHAIISCRAZY 1
+
 void freerange(void *vstart, void *vend);
 extern char end[]; // first address after kernel loaded from ELF file
                    // defined by the kernel linker script in kernel.ld
@@ -81,6 +83,17 @@ void
 kfree(char *v)
 {
   struct run *r;
+#if AVISHAIISCRAZY
+  //decrese the ref counter
+  if(kmem.use_lock)
+    acquire(&kmem.lock);
+  r=&kmem.ref[V2P(v)/PGSIZE]; //r is the struct of the page
+  r->refrences--;
+  if(kmem.use_lock)
+    release(&kmem.lock);
+  if((1 &&  DEBUG) && KDEBUG ) cprintf("kalloc.c: kfree: decreased pa 0x%x, currnet ref number = %d\n",V2P(v),r->refrences);
+  if(r->refrences <=0){
+#endif
 
   if((uint)v % PGSIZE || v < end || V2P(v) >= PHYSTOP)
     panic("kfree");
@@ -99,6 +112,9 @@ kfree(char *v)
   freePagesCounter++; 
   if(kmem.use_lock)
     release(&kmem.lock);
+#if AVISHAIISCRAZY
+  }
+#endif
 }
 
 // Allocate one 4096-byte page of physical memory.
@@ -121,7 +137,7 @@ kalloc(void)
   if(kmem.use_lock)
     release(&kmem.lock);
 
-  if((1 &&  DEBUG)|| KDEBUG ) cprintf("kalloc.c: kallocWithRef: create first ref to pa 0x%x, currnet ref number = %d\n",V2P(r),r->refrences);
+  if((1 &&  DEBUG)|| KDEBUG ) cprintf("kalloc.c: kalloc: create first ref to pa 0x%x, currnet ref number = %d\n",V2P(r),r->refrences);
 
   return (char*)r;
 }
@@ -164,13 +180,18 @@ kallocWithRef(void)
 void
 kIncRef(char *v){
   struct run *r;
-
+  
   if(kmem.use_lock)
     acquire(&kmem.lock);
   r=&kmem.ref[V2P(v)/PGSIZE]; //r is the refrences for v page
+#if AVISHAIISCRAZY
+  if(r->refrences < 1)
+    r->refrences=1;
+#endif
   r->refrences++;
   if(kmem.use_lock)
     release(&kmem.lock);
+  
   if((1 &&  DEBUG)|| KDEBUG ) cprintf("kalloc.c: kIncRef: increased pa 0x%x, currnet ref number = %d\n",V2P(v),r->refrences);
 }
 
