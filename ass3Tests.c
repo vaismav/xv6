@@ -75,6 +75,7 @@ main()
   }
   wait();
    printf(1,"ass3Tests: finished first test\n");
+   #ifdef NONE
   char* buff = sbrk(MAXPYSCPAGES/2);
   buff[0] = 'x';
   
@@ -91,13 +92,22 @@ main()
   }
   wait();
   printf(1,"ass3Tests: finished 2nd test\n");
-  int pages = 29;
+  #endif
+  #ifndef NONE
+      printf(1,"ass3Tests: NONE is not defined, skip test 2\n");
+
+  #endif
+  printf(1,"ass3Tests: PID %d start test 3\n",getpid());
+
+  int pages = 28;
   char* buf = sbrk(4096*pages);
+  printf(1,"ass3Tests:  alocated buff\n");
   int cpid3 = fork();
   if(cpid3 < 0){
     printf(1,"fork failed. ending test\n");
     exit();
   }
+  printf(1,"ass3Tests: PID %d  alocated buff\n", getpid());
   changePages(buf,pages);
   if(cpid3 == 0)
     exit();

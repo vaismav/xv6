@@ -113,16 +113,17 @@ trap(struct trapframe *tf)
     if (*pte & PTE_P){
       //if /*cow is active*/ /*page isnt writable*/ /*page can be accessed by user*/
       if(COW && !(*pte & PTE_W) && (*pte & PTE_U) && (*pte & PTE_COW)){
+        
         //COW
         //if page is present and not writable
-        if(!(PTE_W & PTE_FLAGS(pte[PTX(address)]))){
+        // if(!(PTE_W & PTE_FLAGS(pte[PTX(address)]))){
+          cprintf("trap.c: about to enter handle_COW_write_fault\n");
           myproc()->tf = tf;
-          // handle_write_fault(address);
           handle_COW_write_fault(myproc(),address); 
           if(myproc()->killed)
             exit();
           break;
-        }
+        // }
       }
     }else if(!defineNONE && (*pte & PTE_PG) /*& !(*pte & PTE_P)*/){
       if(1 && DEBUG && myproc() != 0) cprintf("trap.c: trap: PID %d: pagefault, page is in swap on address 0x%x\n ",myproc()->pid, address);

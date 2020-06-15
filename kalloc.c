@@ -92,7 +92,7 @@ kfree(char *v)
   if(kmem.use_lock)
     release(&kmem.lock);
   if((1 &&  DEBUG) && KDEBUG ) cprintf("kalloc.c: kfree: decreased pa 0x%x, currnet ref number = %d\n",V2P(v),r->refrences);
-  if(r->refrences <=0){
+  if(r->refrences <= 0){
 #endif
 
   if((uint)v % PGSIZE || v < end || V2P(v) >= PHYSTOP)

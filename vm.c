@@ -436,7 +436,13 @@ swapOut(struct proc* p){
   *pte &= ~PTE_P;
   // Clearing the PTE_A flag
   *pte &= ~PTE_A;
-
+  if(COW){
+    //seting W bit
+    *pte |= PTE_W;
+    //clearing the COW flag
+    *pte &= ~PTE_COW; //TODO:
+  }
+  
   //free the page on the pysic space
   if(COW)
     kDecRef(P2V(PTE_ADDR(*pte)));
@@ -611,6 +617,7 @@ handle_write_fault(uint va){
 
 void
 handle_COW_write_fault(struct proc *p, uint va){
+  cprintf("vm.c: handle_COW_write_fault: PID %d: entered function with va 0x%x\n",p->pid,va);
   pte_t *pte; //entry in page table of the faulting page
   uint pa;    //physical addres of faulting page
   uint pan;   //physical addres of new page
@@ -651,7 +658,7 @@ handle_COW_write_fault(struct proc *p, uint va){
     lcr3(V2P(p->pgdir)); 
   }
   else{
-    cprintf("vm.c: handle COW write fault: PID %d: about to panic on page va 0x%x , *pte= 0x%x pysical address=0x%x\n",myproc()->pid,a,*pte, V2P(v));
+    cprintf("vm.c: handle COW write fault: PID %d: about to panic on page va 0x%x , *pte= 0x%x pysical address=0x%x ref =%d\n",myproc()->pid,a,*pte, V2P(v),refrences);
     panic("vm.c: handle COW write fault: pa ref < 1");
   }
 
