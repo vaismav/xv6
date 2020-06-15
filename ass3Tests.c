@@ -50,8 +50,7 @@ main()
   int oldNumOfPages = getNumFreePages();
   int newNumOfPages;
   printf(1,"num of free pages is %d, \n", oldNumOfPages);
-  // int pages;
-  // char* buf = sbrk(4096*pages);
+
 
 
   pid = fork();
@@ -71,12 +70,11 @@ main()
         exit();
       }
     wait();
-      // if(oldNumOfPages!=newNumOfPages)
-      //   printf(1,"the MOO is not working right - sould be the same num of free pages\n");
+
     exit();
   }
   wait();
-   printf(1,"cowtest: finished first test\n");
+   printf(1,"ass3Tests: finished first test\n");
   char* buff = sbrk(MAXPYSCPAGES/2);
   buff[0] = 'x';
   
@@ -92,7 +90,7 @@ main()
     exit();
   }
   wait();
-  printf(1,"cowtest: finished 2nd test\n");
+  printf(1,"ass3Tests: finished 2nd test\n");
   int pages = 29;
   char* buf = sbrk(4096*pages);
   int cpid3 = fork();
@@ -104,6 +102,6 @@ main()
   if(cpid3 == 0)
     exit();
   wait();
-  printf(1,"cowtest: finished 3rd test\n");
+  printf(1,"ass3Tests: finished 3rd test\n");
   exit();
 }

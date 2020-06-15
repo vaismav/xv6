@@ -281,7 +281,7 @@ pushToMemoryPagesArray(struct proc* p, uint va){
   // updating the page age
   #ifdef NFUA
   //for NFUA policy age =0 is ok
-  p->memoryPages[index].age = 0; //TODO: ask maya
+  p->memoryPages[index].age = 0; 
   #endif
   #ifdef LAPA
       //only LAPA policy needs to reset age to 0xFFFFFFFF
@@ -466,9 +466,7 @@ loadPageToMemory(uint address){
   struct proc* p= myproc();
   uint page_va=address & ~0xFFF; //point to the begining of the page va
   pte_t *pte;
-  // char buffer[PGSIZE/2]= "";
-  // char *bufPtr = buffer;
-  // int offsetInPage;
+
   char *mem;
   int indexInSwap;
 
@@ -505,9 +503,8 @@ loadPageToMemory(uint address){
   // reseting the page
   memset(mem, 0, PGSIZE);
   // copy data from swap to pysc memory
-  // offsetInPage=0;
-  // while(offsetInPage<PGSIZE){
-  //   // copy from swap to buffer
+
+  // copy from swap to buffer
     if(readFromSwapFile(p, mem, indexInSwap*PGSIZE , PGSIZE)  != PGSIZE){
       cprintf("vm.c: loadPageToMemory: PID %d:  failed to copy from swapfile to buffer\n",p->pid);
       if(COW)
@@ -516,12 +513,7 @@ loadPageToMemory(uint address){
         kfree(mem);
       return -1;
     }
-    // copy from buffer to pysicl memory
-    // memmove(mem + offsetInPage, bufPtr, PGSIZE);
-  //   //advancing the buffer offset
-  //   offsetInPage = offsetInPage + sizeof(buffer) ;
 
-  // }
   
   //update pte
   pte=(pte_t*)walkpgdir(p->pgdir,(void*)address,0);
@@ -1167,7 +1159,7 @@ copyuvm(pde_t *pgdir, uint sz)
       panic("copyuvm: page not present");
     pa = PTE_ADDR(*pte);
     flags = PTE_FLAGS(*pte);
-    //lcr3(V2P(pgdir)); // refresh //TODO: need it?
+    
 
     if((mem = kalloc()) == 0)
       goto bad;

@@ -101,7 +101,6 @@ trap(struct trapframe *tf)
     //       handle_aging_counter(myproc()); 
     //     }
     // #endif
-    //TODO: see how to add the handle faulting COW
     myproc()->numOfPagedFault++;
     
     address = rcr2();

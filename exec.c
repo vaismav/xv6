@@ -58,8 +58,7 @@ exec(char *path, char **argv)
   //backup the fields
   //if we have a policy such as AQ/ NFUA/ LAPA
   if(!NONEisDefined){ 
-    // struct memoryPages_e MP[MAX_PSYC_PAGES];  
-    // struct swap_e SP[17];
+
     pInMemory= curproc->pagesInMemory;
     pInSwap= curproc->pagesInSwap;
     headPM= curproc->headOfMemoryPages;

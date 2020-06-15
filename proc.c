@@ -119,7 +119,7 @@ handle_aging_counter(struct proc* p){
     release(&ptable.lock);
   }
   
-  #ifdef AQ //TODO: check if ok?
+  #ifdef AQ 
     acquire(&ptable.lock);
     //the queue starts tail-->head
     //takes the tail
@@ -178,11 +178,6 @@ handle_aging_counter(struct proc* p){
             }
             
           }
-          
-          // if(1 && DEBUG){
-          //   cprintf("proc.c: handle_aging_counter:AQ: p->pid %d new queue state:\n",p->pid);
-          //   printMemoryPagesQueue(p);
-          // }
         }
         
       }
@@ -512,7 +507,7 @@ exit(void)
 
       if(curproc->pid > 2 && removeSwapFile(curproc)!=0)
           panic("proc.c: exit: couldnt remove swapFile");
-    } //TODO: need to reset the arrays?
+    } 
   #endif
 
   // Close all open files.
@@ -616,13 +611,7 @@ scheduler(void)
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      // #ifndef NONE
-      //   //andle the aging macanisem in NONE is not defined.
-      //   if(p->state != UNUSED && p->pid > 2 ){
-      //     if(1 && DEBUG) cprintf("proc.c: scheduler: p->pid %d NONE is NOT defined, about to handle_aging_counter\n",p->pid);
-      //     handle_aging_counter(p); 
-      //   }
-      // #endif
+
 
       if(p->state != RUNNABLE)
         continue;
