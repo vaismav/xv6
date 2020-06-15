@@ -1,0 +1,3475 @@
+diff --git a/.vscode/c_cpp_properties.json b/.vscode/c_cpp_properties.json
+new file mode 100644
+index 0000000..49d2b78
+--- /dev/null
++++ b/.vscode/c_cpp_properties.json
+@@ -0,0 +1,16 @@
++{
++    "configurations": [
++        {
++            "name": "Linux",
++            "includePath": [
++                "${workspaceFolder}/**"
++            ],
++            "defines": [],
++            "compilerPath": "/usr/bin/gcc",
++            "cStandard": "gnu11",
++            "cppStandard": "c++17",
++            "intelliSenseMode": "gcc-x64"
++        }
++    ],
++    "version": 4
++}
+\ No newline at end of file
+diff --git a/Makefile b/Makefile
+index 09d790c..3430d51 100644
+--- a/Makefile
++++ b/Makefile
+@@ -71,17 +71,29 @@ QEMU = $(shell if which qemu > /dev/null; \
+ 	echo "***" 1>&2; exit 1)
+ endif
+ 
++
++
+ CC = $(TOOLPREFIX)gcc
+ AS = $(TOOLPREFIX)gas
+ LD = $(TOOLPREFIX)ld
+ OBJCOPY = $(TOOLPREFIX)objcopy
+ OBJDUMP = $(TOOLPREFIX)objdump
+-CFLAGS = -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer
+-CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
++CFLAGS = -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer 
++CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector) 
++CFLAGS += -D$(SELECTION) -D$(VERBOSE_PRINT) 
+ ASFLAGS = -m32 -gdwarf-2 -Wa,-divide
+ # FreeBSD ld wants ``elf_i386_fbsd''
+ LDFLAGS += -m $(shell $(LD) -V | grep elf_i386 2>/dev/null | head -n 1)
+ 
++ifndef SELECTION
++	SELECTION=SCFIFO
++endif
++
++ifndef VERBOSE_PRINT
++	VERBOSE_PRINT=FALSE
++endif
++
++
+ # Disable PIE when possible (for Ubuntu 16.10 toolchain)
+ ifneq ($(shell $(CC) -dumpspecs 2>/dev/null | grep -e '[^f]no-pie'),)
+ CFLAGS += -fno-pie -no-pie
+@@ -181,6 +193,8 @@ UPROGS=\
+ 	_usertests\
+ 	_wc\
+ 	_zombie\
++	_testone\
++	_ass3Tests\
+ 
+ fs.img: mkfs README $(UPROGS)
+ 	./mkfs fs.img README $(UPROGS)
+@@ -248,6 +262,7 @@ qemu-nox-gdb: fs.img xv6.img .gdbinit
+ # check in that version.
+ 
+ EXTRA=\
++	testone.c ass3Tests.c\
+ 	mkfs.c ulib.c user.h cat.c echo.c forktest.c grep.c kill.c\
+ 	ln.c ls.c mkdir.c rm.c stressfs.c usertests.c wc.c zombie.c\
+ 	printf.c umalloc.c\
+diff --git a/ass3Tests.c b/ass3Tests.c
+new file mode 100644
+index 0000000..9407f1e
+--- /dev/null
++++ b/ass3Tests.c
+@@ -0,0 +1,117 @@
++#include "types.h"
++#include "stat.h"
++#include "user.h"
++#define MAXPYSCPAGES 0xE000000
++
++void changePages(char* buf,int pages){
++    int i;
++    printf(1,"testone.c: PID %d  start test: add %d pages\n",getpid(),pages);
++    
++    printf(1,"testone.c: PID %d  addPages: created buf = sbrk(4096*pages), pages = %d\n",getpid(),pages);
++    for(i=0; i<pages;i++){
++        printf(1,"testone.c: PID %d addPages: putting 'x' at address 0x%x\n",getpid(),&buf[i*4096]);
++        buf[i*4096] = 'x';
++    }
++
++    for(i=0; i<pages;i++){
++        printf(1, " PID %d round 1 data at address 0x%x : %c\n",getpid(),&buf[i*4096], buf[i*4096]);
++    }
++    
++    for(i=0; i<pages;i++){
++        printf(1, " PID %d round 2 data: %c\n",getpid(),buf[i*4096]);
++    }
++
++}
++
++
++
++void forkIT(int n){
++  printf(1,"forking the %d chiled, \n", n);
++  if(n == 0){
++    return;
++  }
++  
++  int cpid = fork();
++  if(cpid < 0){
++        printf(1,"fork %d failed\n",n);
++        exit();
++  }else if(cpid == 0){
++    forkIT(n-1);
++    exit();
++  }
++  wait();
++  exit();
++}
++
++int
++main()
++{
++  int pid;
++  int oldNumOfPages = getNumFreePages();
++  int newNumOfPages;
++  printf(1,"num of free pages is %d, \n", oldNumOfPages);
++
++
++
++  pid = fork();
++  if(pid < 0){
++    printf(1,"fork failed\n");
++    exit();
++  }else if(pid==0){
++      newNumOfPages=getNumFreePages();
++      printf(1,"num of free pages after first fork %d, \n", newNumOfPages);
++      int cpid2=fork();
++      if(cpid2 < 0){
++        printf(1,"fork failed\n");
++        exit();
++      }else if(cpid2 == 0){
++        int num=getNumFreePages();
++        printf(1,"num of free pages after first fork %d, \n", num);
++        exit();
++      }
++    wait();
++
++    exit();
++  }
++  wait();
++   printf(1,"ass3Tests: finished first test\n");
++   #ifdef NONE
++  char* buff = sbrk(MAXPYSCPAGES/2);
++  buff[0] = 'x';
++  
++  int numOfFork = 3;
++  
++  int cpid2 =fork();
++   if(cpid2 < 0){
++    printf(1,"fork failed. ending test\n");
++    exit();
++  }
++  if(cpid2==0){
++    forkIT(numOfFork);
++    exit();
++  }
++  wait();
++  printf(1,"ass3Tests: finished 2nd test\n");
++  #endif
++  #ifndef NONE
++      printf(1,"ass3Tests: NONE is not defined, skip test 2\n");
++
++  #endif
++  printf(1,"ass3Tests: PID %d start test 3\n",getpid());
++
++  int pages = 28;
++  char* buf = sbrk(4096*pages);
++  printf(1,"ass3Tests:  alocated buff\n");
++  int cpid3 = fork();
++  if(cpid3 < 0){
++    printf(1,"fork failed. ending test\n");
++    exit();
++  }
++  printf(1,"ass3Tests: PID %d  alocated buff\n", getpid());
++  changePages(buf,pages);
++  if(cpid3 == 0)
++    exit();
++  wait();
++  printf(1,"ass3Tests: finished 3rd test\n");
++  exit();
++}
+\ No newline at end of file
+diff --git a/consolelog b/consolelog
+index beb234a..b2245f3 100644
+--- a/consolelog
++++ b/consolelog
+@@ -1,55 +1,1020 @@
+-os202@os202-lubuntu:~/Desktop/xv6-public$ make qemu
+-gcc -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer -fno-stack-protector -fno-pie -no-pie   -c -o trap.o trap.c
+-ld -m    elf_i386 -T kernel.ld -o kernel entry.o bio.o console.o exec.o file.o fs.o ide.o ioapic.o kalloc.o kbd.o lapic.o log.o main.o mp.o picirq.o pipe.o proc.o sleeplock.o spinlock.o string.o swtch.o syscall.o sysfile.o sysproc.o trapasm.o trap.o uart.o vectors.o vm.o  -b binary initcode entryother
+-objdump -S kernel > kernel.asm
+-objdump -t kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' > kernel.sym
+-dd if=/dev/zero of=xv6.img count=10000
+-10000+0 records in
+-10000+0 records out
+-5120000 bytes (5.1 MB, 4.9 MiB) copied, 0.0486703 s, 105 MB/s
+-dd if=bootblock of=xv6.img conv=notrunc
+-1+0 records in
+-1+0 records out
+-512 bytes copied, 0.000248371 s, 2.1 MB/s
+-dd if=kernel of=xv6.img seek=1 conv=notrunc
+-369+1 records in
+-369+1 records out
+-189104 bytes (189 kB, 185 KiB) copied, 0.00202032 s, 93.6 MB/s
+-qemu-system-i386 -serial mon:stdio -drive file=fs.img,index=1,media=disk,format=raw -drive file=xv6.img,index=0,media=disk,format=raw -smp 2 -m 512 
+-xv6...
+-cpu1: starting 1
+-cpu0: starting 0
+-sb: size 1000 nblocks 941 ninodes 200 nlog 30 logstart 2 inodestart 32 bmap start 58
+-init: starting sh
+-$ signalTest
+-TEST: uint sigprocmask(uint): 
+-TEST: uint sigprocmask(uint) doesnt update mask
+-TEST: uint sigaction(): 
+-TEST: uint sigaction(): not changing process signal handlers
+-TEST: uint kill(int,int): 
+-TEST: uint kill(int,int): Sent SIGKILL to PID:7 
+-trap.c: handleSignal:9 is a pending signal and not blocked.
+-trap.c: handleSignal: p->signal_Handlers[9] = 0 
+-TEST: uint kill(int,int): PASSED cpid(from wait)=7  
+-trap.c: handleSignal:9 is a pending signal and not blocked.
+-trap.c: handleSignal: p->signal_Handlers[9] = 0 
+-FINISHED UTILITIES TESTS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
+-TEST 1: create new procSignalsData from default procSignalsData settings
+-TEST 1 PASSED
+-TEST 2: create new procSignalsData with custom signal mask and custom signal handlers
+-TEST 2 PASSED
+-TEST 3: create new procSignalsData with custom signal mask and custom signal handlers
+-TEST 5: check user handler behavor
+-TEST 5: PID:0 sigmask =  80000000 
+-TEST 5: act->sigmask =  0 .  
+-TEST 5: act.sa_handler =  330 .  
+-TESTTEST 5: sending signal '5' from pid: 12 TO pid: 11 
+-trap.c: handleSignal:5 is a pending signal and not blocked.
+-trap.c: handleSignal: p->signal_Handlers[5] = 330 
+-trap.c: handleSignal: handling user handler for signal:5 on pid: 11
+-trap.c: handleSignal: reset pending signals 5
+-trap.c: handleSignal: backupd signal_mask 5
+-proc.c: handleSignal: exit back to trap
+-pid 11 signalTest: trap 14 err 5 on cpu 1 eip 0x22 addr 0xfff0e483--kill proc
+-pid 3 signalTest: trap 14 err 5 on cpu 1 eip 0xffffffff addr 0xffffffff--kill proc
+-$ zombie!
+\ No newline at end of file
++kalloc.c: kalloc: create first ref to pa 0xdecd000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdecc000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdecb000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdeca000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdec9000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdec8000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdec7000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdec6000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdec5000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdec4000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdec3000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdec2000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdec1000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdec0000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdebf000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdebe000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdebd000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdebc000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdebb000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdeba000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdeb9000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdeb8000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdeb7000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdeb6000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdeb5000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdeb4000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdeb3000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdeb2000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdeb1000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdeb0000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdeaf000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdeae000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdead000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdeac000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdeab000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdeaa000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdea9000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdea8000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdea7000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdea6000, currnet ref number = 1
++kalloc.c: kIncRef: increased pa 0xdee2000, currnet ref number = 3
++kalloc.c: kIncRef: increased pa 0xdee0000, currnet ref number = 3
++kalloc.c: kIncRef: increased pa 0xdedf000, currnet ref number = 2
++proc.c: fork: np->pid 5 copyied process state from proc, pages in memory=0
++proc.c: fork: np->pid 5 before start of copy pages data, pages in memory=0
++proc.c: fork: PID 4 np->pid = 5
++proc.c: fork: size of buffer in fork: 2048
++fs.c: readFromSwapFile: PID 4 wrote to file after fork ,pages in memory= 3
++proc.c: fork: PID 4 SUCCESSFULY created new proc np->pid =5, np->pagesInMemory=3
++trap.c: trap: PID 4: T_PGFLT on address 0x2fbc
++ kalloc.c: kallocWithRef: create first ref to pa 0xdea5000, currnet ref number = 1
++kalloc.c: kDecRef: decreased pa 0xdedf000, currnet ref number = 1
++
++trap.c: trap: PID 5 NONE is NOT defined, about to handle_aging_counter
++trap.c: trap: PID 5: T_PGFLT on address 0x2fbc
++ 
++trap.c: trap: PID 5 NONE is NOT defined, about to handle_aging_counter
++num of fr
++trap.c: trap: PID 5 NONE is NOT defined, about to handle_aging_counter
++ee pages after
++trap.c: trap: PID 5 NONE is NOT defined, about to handle_aging_counter
++ firs
++trap.c: trap: PID 5 NONE is NOT defined, about to handle_aging_counter
++t fork 5
++trap.c: trap: PID 5 NONE is NOT defined, about to handle_aging_counter
++6530, 
++
++trap.c: trap: PID 5 NONE is NOT defined, about to handle_aging_counter
++proc.c: exit: PID 5 about to remove swapFile
++
++trap.c: trap: PID 5 NONE is NOT defined, about to handle_aging_counter
++proc.c: wait: PID 4 about to enter freevm for p->pid= 5, p->pagesInMemory=3
++vm.c: freevm: PID 4 about to deallocuvm 
++vm.c: deallocuvm: PID 4 enter deallocuvm p->pid=5, pages in memory=3, p->pagesInSwap = 0
++
++vm.c: printPagesInSwap: PID 5 SWAP pages list:
++vm.c: printPagesInSwap: index: 0, is_occupied: 0, va: 0xffffffff 
++vm.c: printPagesInSwap: index: 1, is_occupied: 0, va: 0xffffffff 
++vm.c: printPagesInSwap: index: 2, is_occupied: 0, va: 0xffffffff 
++vm.c: printPagesInSwap: index: 3, is_occupied: 0, va: 0xffffffff 
++vm.c: printPagesInSwap: index: 4, is_occupied: 0, va: 0xffffffff 
++vm.c: printPagesInSwap: index: 5, is_occupied: 0, va: 0xffffffff 
++vm.c: printPagesInSwap: index: 6, is_occupied: 0, va: 0xffffffff 
++vm.c: printPagesInSwap: index: 7, is_occupied: 0, va: 0xffffffff 
++vm.c: printPagesInSwap: index: 8, is_occupied: 0, va: 0xffffffff 
++vm.c: printPagesInSwap: index: 9, is_occupied: 0, va: 0xffffffff 
++vm.c: printPagesInSwap: index: 10, is_occupied: 0, va: 0xffffffff 
++vm.c: printPagesInSwap: index: 11, is_occupied: 0, va: 0xffffffff 
++vm.c: printPagesInSwap: index: 12, is_occupied: 0, va: 0xffffffff 
++vm.c: printPagesInSwap: index: 13, is_occupied: 0, va: 0xffffffff 
++vm.c: printPagesInSwap: index: 14, is_occupied: 0, va: 0xffffffff 
++vm.c: printPagesInSwap: index: 15, is_occupied: 0, va: 0xffffffff 
++vm.c: printPagesInSwap: index: 16, is_occupied: 0, va: 0xffffffff 
++
++vm.c: pritntProcMemoryPages: PID 5 memory pages list:
++vm.c: pritntProcMemoryPages: index: 0, is_occupied: 1, va: 0x0, age: 0, next: 1, prev: -1  
++vm.c: pritntProcMemoryPages: index: 1, is_occupied: 1, va: 0x1000, age: 0, next: 2, prev: 0  
++vm.c: pritntProcMemoryPages: index: 2, is_occupied: 1, va: 0x2000, age: 0, next: -1, prev: 1  
++vm.c: pritntProcMemoryPages: index: 3, is_occupied: 0, va: 0xffffffff, age: 0, next: -1, prev: -1  
++vm.c: pritntProcMemoryPages: index: 4, is_occupied: 0, va: 0xffffffff, age: 0, next: -1, prev: -1  
++vm.c: pritntProcMemoryPages: index: 5, is_occupied: 0, va: 0xffffffff, age: 0, next: -1, prev: -1  
++vm.c: pritntProcMemoryPages: index: 6, is_occupied: 0, va: 0xffffffff, age: 0, next: -1, prev: -1  
++vm.c: pritntProcMemoryPages: index: 7, is_occupied: 0, va: 0xffffffff, age: 0, next: -1, prev: -1  
++vm.c: pritntProcMemoryPages: index: 8, is_occupied: 0, va: 0xffffffff, age: 0, next: -1, prev: -1  
++vm.c: pritntProcMemoryPages: index: 9, is_occupied: 0, va: 0xffffffff, age: 0, next: -1, prev: -1  
++vm.c: pritntProcMemoryPages: index: 10, is_occupied: 0, va: 0xffffffff, age: 0, next: -1, prev: -1  
++vm.c: pritntProcMemoryPages: index: 11, is_occupied: 0, va: 0xffffffff, age: 0, next: -1, prev: -1  
++vm.c: pritntProcMemoryPages: index: 12, is_occupied: 0, va: 0xffffffff, age: 0, next: -1, prev: -1  
++vm.c: pritntProcMemoryPages: index: 13, is_occupied: 0, va: 0xffffffff, age: 0, next: -1, prev: -1  
++vm.c: pritntProcMemoryPages: index: 14, is_occupied: 0, va: 0xffffffff, age: 0, next: -1, prev: -1  
++vm.c: pritntProcMemoryPages: index: 15, is_occupied: 0, va: 0xffffffff, age: 0, next: -1, prev: -1  
++kalloc.c: kDecRef: decreased pa 0xdee2000, currnet ref number = 2
++vm.c: removePageFromMemory: PID 5 removed page(0x0) from memory,p->memoryPages[index].is_occupied =0, pages in memory=2
++kalloc.c: kDecRef: decreased pa 0xdee0000, currnet ref number = 2
++vm.c: removePageFromMemory: PID 5 removed page(0x1000) from memory,p->memoryPages[index].is_occupied =0, pages in memory=1
++kalloc.c: kDecRef: decreased pa 0xdedf000, currnet ref number = 0
++kalloc.c: kDecRef: free pa 0xdedf000, currnet ref number = 0
++vm.c: removePageFromMemory: PID 5 removed page(0x2000) from memory,p->memoryPages[index].is_occupied =0, pages in memory=0
++vm.c: deallocuvm: PID 5 exit deallocuvm
++proc.c: exit: PID 4 about to remove swapFile
++
++trap.c: trap: PID 4 NONE is NOT defined, about to handle_aging_counter
++proc.c: wait: PID 3 about to enter freevm for p->pid= 4, p->pagesInMemory=3
++vm.c: freevm: PID 3 about to deallocuvm 
++vm.c: deallocuvm: PID 3 enter deallocuvm p->pid=4, pages in memory=3, p->pagesInSwap = 0
++
++vm.c: printPagesInSwap: PID 4 SWAP pages list:
++vm.c: printPagesInSwap: index: 0, is_occupied: 0, va: 0xffffffff 
++vm.c: printPagesInSwap: index: 1, is_occupied: 0, va: 0xffffffff 
++vm.c: printPagesInSwap: index: 2, is_occupied: 0, va: 0xffffffff 
++vm.c: printPagesInSwap: index: 3, is_occupied: 0, va: 0xffffffff 
++vm.c: printPagesInSwap: index: 4, is_occupied: 0, va: 0xffffffff 
++vm.c: printPagesInSwap: index: 5, is_occupied: 0, va: 0xffffffff 
++vm.c: printPagesInSwap: index: 6, is_occupied: 0, va: 0xffffffff 
++vm.c: printPagesInSwap: index: 7, is_occupied: 0, va: 0xffffffff 
++vm.c: printPagesInSwap: index: 8, is_occupied: 0, va: 0xffffffff 
++vm.c: printPagesInSwap: index: 9, is_occupied: 0, va: 0xffffffff 
++vm.c: printPagesInSwap: index: 10, is_occupied: 0, va: 0xffffffff 
++vm.c: printPagesInSwap: index: 11, is_occupied: 0, va: 0xffffffff 
++vm.c: printPagesInSwap: index: 12, is_occupied: 0, va: 0xffffffff 
++vm.c: printPagesInSwap: index: 13, is_occupied: 0, va: 0xffffffff 
++vm.c: printPagesInSwap: index: 14, is_occupied: 0, va: 0xffffffff 
++vm.c: printPagesInSwap: index: 15, is_occupied: 0, va: 0xffffffff 
++vm.c: printPagesInSwap: index: 16, is_occupied: 0, va: 0xffffffff 
++
++vm.c: pritntProcMemoryPages: PID 4 memory pages list:
++vm.c: pritntProcMemoryPages: index: 0, is_occupied: 1, va: 0x0, age: 0, next: 1, prev: -1  
++vm.c: pritntProcMemoryPages: index: 1, is_occupied: 1, va: 0x1000, age: 0, next: 2, prev: 0  
++vm.c: pritntProcMemoryPages: index: 2, is_occupied: 1, va: 0x2000, age: 0, next: -1, prev: 1  
++vm.c: pritntProcMemoryPages: index: 3, is_occupied: 0, va: 0xffffffff, age: 0, next: -1, prev: -1  
++vm.c: pritntProcMemoryPages: index: 4, is_occupied: 0, va: 0xffffffff, age: 0, next: -1, prev: -1  
++vm.c: pritntProcMemoryPages: index: 5, is_occupied: 0, va: 0xffffffff, age: 0, next: -1, prev: -1  
++vm.c: pritntProcMemoryPages: index: 6, is_occupied: 0, va: 0xffffffff, age: 0, next: -1, prev: -1  
++vm.c: pritntProcMemoryPages: index: 7, is_occupied: 0, va: 0xffffffff, age: 0, next: -1, prev: -1  
++vm.c: pritntProcMemoryPages: index: 8, is_occupied: 0, va: 0xffffffff, age: 0, next: -1, prev: -1  
++vm.c: pritntProcMemoryPages: index: 9, is_occupied: 0, va: 0xffffffff, age: 0, next: -1, prev: -1  
++vm.c: pritntProcMemoryPages: index: 10, is_occupied: 0, va: 0xffffffff, age: 0, next: -1, prev: -1  
++vm.c: pritntProcMemoryPages: index: 11, is_occupied: 0, va: 0xffffffff, age: 0, next: -1, prev: -1  
++vm.c: pritntProcMemoryPages: index: 12, is_occupied: 0, va: 0xffffffff, age: 0, next: -1, prev: -1  
++vm.c: pritntProcMemoryPages: index: 13, is_occupied: 0, va: 0xffffffff, age: 0, next: -1, prev: -1  
++vm.c: pritntProcMemoryPages: index: 14, is_occupied: 0, va: 0xffffffff, age: 0, next: -1, prev: -1  
++vm.c: pritntProcMemoryPages: index: 15, is_occupied: 0, va: 0xffffffff, age: 0, next: -1, prev: -1  
++kalloc.c: kDecRef: decreased pa 0xdee2000, currnet ref number = 1
++vm.c: removePageFromMemory: PID 4 removed page(0x0) from memory,p->memoryPages[index].is_occupied =0, pages in memory=2
++kalloc.c: kDecRef: decreased pa 0xdee0000, currnet ref number = 1
++vm.c: removePageFromMemory: PID 4 removed page(0x1000) from memory,p->memoryPages[index].is_occupied =0, pages in memory=1
++kalloc.c: kDecRef: decreased pa 0xdea5000, currnet ref number = -2
++kalloc.c: kDecRef: free pa 0xdea5000, currnet ref number = -2
++vm.c: removePageFromMemory: PID 4 removed page(0x2000) from memory,p->memoryPages[index].is_occupied =0, pages in memory=0
++vm.c: deallocuvm: PID 4 exit deallocuvm
++ass3Tests: finished first test
++ass3Tests: NONE is not defined, skip test 2
++ass3Tests: PID 3 start test 3
++vm.c: allocuvm: PID 3 enter allocuvm with pgdir of p->pid 3
++kalloc.c: kallocWithRef: create first ref to pa 0xdf76000, currnet ref number = 1
++vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x3000
++vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 3 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x0 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x1000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x2000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0xffffffff is occupied=0 
++kalloc.c: kallocWithRef: create first ref to pa 0xdf75000, currnet ref number = 1
++vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x4000
++vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 4 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x0 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x1000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x2000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x3000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0xffffffff is occupied=0 
++kalloc.c: kallocWithRef: create first ref to pa 0xdffd000, currnet ref number = 1
++vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x5000
++vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 5 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x0 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x1000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x2000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x3000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0x4000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 5 va=0xffffffff is occupied=0 
++kalloc.c: kallocWithRef: create first ref to pa 0xdffc000, currnet ref number = 1
++vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x6000
++vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 6 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x0 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x1000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x2000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x3000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0x4000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 5 va=0x5000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 6 va=0xffffffff is occupied=0 
++kalloc.c: kallocWithRef: create first ref to pa 0xdffb000, currnet ref number = 1
++vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x7000
++vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 7 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x0 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x1000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x2000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x3000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0x4000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 5 va=0x5000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 6 va=0x6000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 7 va=0xffffffff is occupied=0 
++kalloc.c: kallocWithRef: create first ref to pa 0xdffa000, currnet ref number = 1
++vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x8000
++vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 8 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x0 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x1000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x2000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x3000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0x4000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 5 va=0x5000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 6 va=0x6000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 7 va=0x7000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 8 va=0xffffffff is occupied=0 
++kalloc.c: kallocWithRef: create first ref to pa 0xdff9000, currnet ref number = 1
++vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x9000
++vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 9 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x0 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x1000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x2000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x3000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0x4000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 5 va=0x5000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 6 va=0x6000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 7 va=0x7000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 8 va=0x8000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 9 va=0xffffffff is occupied=0 
++kalloc.c: kallocWithRef: create first ref to pa 0xdff8000, currnet ref number = 1
++vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0xa000
++vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 10 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x0 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x1000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x2000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x3000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0x4000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 5 va=0x5000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 6 va=0x6000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 7 va=0x7000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 8 va=0x8000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 9 va=0x9000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 10 va=0xffffffff is occupied=0 
++kalloc.c: kallocWithRef: create first ref to pa 0xdff7000, currnet ref number = 1
++vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0xb000
++vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 11 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x0 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x1000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x2000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x3000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0x4000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 5 va=0x5000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 6 va=0x6000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 7 va=0x7000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 8 va=0x8000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 9 va=0x9000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 10 va=0xa000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 11 va=0xffffffff is occupied=0 
++kalloc.c: kallocWithRef: create first ref to pa 0xdff6000, currnet ref number = 1
++vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0xc000
++vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 12 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x0 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x1000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x2000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x3000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0x4000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 5 va=0x5000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 6 va=0x6000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 7 va=0x7000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 8 va=0x8000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 9 va=0x9000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 10 va=0xa000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 11 va=0xb000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 12 va=0xffffffff is occupied=0 
++kalloc.c: kallocWithRef: create first ref to pa 0xdff5000, currnet ref number = 1
++vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0xd000
++vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 13 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x0 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x1000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x2000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x3000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0x4000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 5 va=0x5000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 6 va=0x6000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 7 va=0x7000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 8 va=0x8000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 9 va=0x9000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 10 va=0xa000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 11 va=0xb000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 12 va=0xc000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 13 va=0xffffffff is occupied=0 
++kalloc.c: kallocWithRef: create first ref to pa 0xdff4000, currnet ref number = 1
++vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0xe000
++vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 14 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x0 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x1000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x2000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x3000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0x4000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 5 va=0x5000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 6 va=0x6000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 7 va=0x7000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 8 va=0x8000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 9 va=0x9000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 10 va=0xa000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 11 va=0xb000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 12 va=0xc000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 13 va=0xd000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 14 va=0xffffffff is occupied=0 
++kalloc.c: kallocWithRef: create first ref to pa 0xdff3000, currnet ref number = 1
++vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0xf000
++vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 15 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x0 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x1000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x2000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x3000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0x4000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 5 va=0x5000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 6 va=0x6000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 7 va=0x7000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 8 va=0x8000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 9 va=0x9000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 10 va=0xa000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 11 va=0xb000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 12 va=0xc000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 13 va=0xd000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 14 va=0xe000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 15 va=0xffffffff is occupied=0 
++vm.c: allocuvm: PID 3 has MAX_PSYC_PAGES (p->pagesInMemory = 16) pages in memory, swaping one page out
++vm.c: swapOut: enter swapOut for p->pid 3
++vm: selectPageToSwap: PID 3: select page by SCFIFO policy 
++vm.c: swapOut: PID 3: chose page in index 1 to swap out
++vm.c: swapOut: PID 3 about copy page 0x1000 to swapFile at index 0
++fs.c: writeToSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++vm.c: swapOut: PID 3 finished copy page 0x1000 to swapFile at index 0
++kalloc.c: kDecRef: decreased pa 0xdee0000, currnet ref number = 0
++kalloc.c: kDecRef: free pa 0xdee0000, currnet ref number = 0
++vm.c: swapOut: PID 3: removing page in index 1 from p->memoryPages
++vm.c: removePageFromMemory: PID 3 removed page(0x1000) from memory,p->memoryPages[index].is_occupied =0, pages in memory=15
++vm.c: swapOut: p->pid 3 removed page in index 1 from memory 
++kalloc.c: kallocWithRef: create first ref to pa 0xdee0000, currnet ref number = 1
++vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x10000
++vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 15 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x0 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0xffffffff is occupied=0 
++vm.c: allocuvm: PID 3 has MAX_PSYC_PAGES (p->pagesInMemory = 16) pages in memory, swaping one page out
++vm.c: swapOut: enter swapOut for p->pid 3
++vm: selectPageToSwap: PID 3: select page by SCFIFO policy 
++vm.c: swapOut: PID 3: chose page in index 0 to swap out
++vm.c: swapOut: PID 3 about copy page 0x0 to swapFile at index 1
++fs.c: writeToSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++vm.c: swapOut: PID 3 finished copy page 0x0 to swapFile at index 1
++kalloc.c: kDecRef: decreased pa 0xdee2000, currnet ref number = 0
++kalloc.c: kDecRef: free pa 0xdee2000, currnet ref number = 0
++vm.c: swapOut: PID 3: removing page in index 0 from p->memoryPages
++vm.c: removePageFromMemory: PID 3 removed page(0x0) from memory,p->memoryPages[index].is_occupied =0, pages in memory=15
++vm.c: swapOut: p->pid 3 removed page in index 0 from memory 
++kalloc.c: kallocWithRef: create first ref to pa 0xdee2000, currnet ref number = 1
++vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x11000
++vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 15 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0xffffffff is occupied=0 
++vm.c: allocuvm: PID 3 has MAX_PSYC_PAGES (p->pagesInMemory = 16) pages in memory, swaping one page out
++vm.c: swapOut: enter swapOut for p->pid 3
++vm: selectPageToSwap: PID 3: select page by SCFIFO policy 
++vm.c: swapOut: PID 3: chose page in index 3 to swap out
++vm.c: swapOut: PID 3 about copy page 0x3000 to swapFile at index 2
++fs.c: writeToSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++vm.c: swapOut: PID 3 finished copy page 0x3000 to swapFile at index 2
++kalloc.c: kDecRef: decreased pa 0xdf76000, currnet ref number = -5
++kalloc.c: kDecRef: free pa 0xdf76000, currnet ref number = -5
++vm.c: swapOut: PID 3: removing page in index 3 from p->memoryPages
++vm.c: removePageFromMemory: PID 3 removed page(0x3000) from memory,p->memoryPages[index].is_occupied =0, pages in memory=15
++vm.c: swapOut: p->pid 3 removed page in index 3 from memory 
++kalloc.c: kallocWithRef: create first ref to pa 0xdf76000, currnet ref number = 1
++vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x12000
++vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 15 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x11000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x10000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x2000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0xffffffff is occupied=0 
++vm.c: allocuvm: PID 3 has MAX_PSYC_PAGES (p->pagesInMemory = 16) pages in memory, swaping one page out
++vm.c: swapOut: enter swapOut for p->pid 3
++vm: selectPageToSwap: PID 3: select page by SCFIFO policy 
++vm.c: swapOut: PID 3: chose page in index 2 to swap out
++vm.c: swapOut: PID 3 about copy page 0x2000 to swapFile at index 3
++fs.c: writeToSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++vm.c: swapOut: PID 3 finished copy page 0x2000 to swapFile at index 3
++kalloc.c: kDecRef: decreased pa 0xdf25000, currnet ref number = -4
++kalloc.c: kDecRef: free pa 0xdf25000, currnet ref number = -4
++vm.c: swapOut: PID 3: removing page in index 2 from p->memoryPages
++vm.c: removePageFromMemory: PID 3 removed page(0x2000) from memory,p->memoryPages[index].is_occupied =0, pages in memory=15
++vm.c: swapOut: p->pid 3 removed page in index 2 from memory 
++kalloc.c: kallocWithRef: create first ref to pa 0xdf25000, currnet ref number = 1
++vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x13000
++vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 15 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x11000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x10000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0xffffffff is occupied=0 
++vm.c: allocuvm: PID 3 has MAX_PSYC_PAGES (p->pagesInMemory = 16) pages in memory, swaping one page out
++vm.c: swapOut: enter swapOut for p->pid 3
++vm: selectPageToSwap: PID 3: select page by SCFIFO policy 
++vm.c: swapOut: PID 3: chose page in index 4 to swap out
++vm.c: swapOut: PID 3 about copy page 0x4000 to swapFile at index 4
++fs.c: writeToSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++vm.c: swapOut: PID 3 finished copy page 0x4000 to swapFile at index 4
++kalloc.c: kDecRef: decreased pa 0xdf75000, currnet ref number = -6
++kalloc.c: kDecRef: free pa 0xdf75000, currnet ref number = -6
++vm.c: swapOut: PID 3: removing page in index 4 from p->memoryPages
++vm.c: removePageFromMemory: PID 3 removed page(0x4000) from memory,p->memoryPages[index].is_occupied =0, pages in memory=15
++vm.c: swapOut: p->pid 3 removed page in index 4 from memory 
++kalloc.c: kallocWithRef: create first ref to pa 0xdf75000, currnet ref number = 1
++vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x14000
++vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 15 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x11000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x10000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x13000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x12000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0xffffffff is occupied=0 
++vm.c: allocuvm: PID 3 has MAX_PSYC_PAGES (p->pagesInMemory = 16) pages in memory, swaping one page out
++vm.c: swapOut: enter swapOut for p->pid 3
++vm: selectPageToSwap: PID 3: select page by SCFIFO policy 
++vm.c: swapOut: PID 3: chose page in index 5 to swap out
++vm.c: swapOut: PID 3 about copy page 0x5000 to swapFile at index 5
++fs.c: writeToSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++vm.c: swapOut: PID 3 finished copy page 0x5000 to swapFile at index 5
++kalloc.c: kDecRef: decreased pa 0xdffd000, currnet ref number = -6
++kalloc.c: kDecRef: free pa 0xdffd000, currnet ref number = -6
++vm.c: swapOut: PID 3: removing page in index 5 from p->memoryPages
++vm.c: removePageFromMemory: PID 3 removed page(0x5000) from memory,p->memoryPages[index].is_occupied =0, pages in memory=15
++vm.c: swapOut: p->pid 3 removed page in index 5 from memory 
++kalloc.c: kallocWithRef: create first ref to pa 0xdffd000, currnet ref number = 1
++vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x15000
++vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 15 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x11000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x10000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x13000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x12000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0x14000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 5 va=0xffffffff is occupied=0 
++vm.c: allocuvm: PID 3 has MAX_PSYC_PAGES (p->pagesInMemory = 16) pages in memory, swaping one page out
++vm.c: swapOut: enter swapOut for p->pid 3
++vm: selectPageToSwap: PID 3: select page by SCFIFO policy 
++vm.c: swapOut: PID 3: chose page in index 6 to swap out
++vm.c: swapOut: PID 3 about copy page 0x6000 to swapFile at index 6
++fs.c: writeToSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++vm.c: swapOut: PID 3 finished copy page 0x6000 to swapFile at index 6
++kalloc.c: kDecRef: decreased pa 0xdffc000, currnet ref number = -6
++kalloc.c: kDecRef: free pa 0xdffc000, currnet ref number = -6
++vm.c: swapOut: PID 3: removing page in index 6 from p->memoryPages
++vm.c: removePageFromMemory: PID 3 removed page(0x6000) from memory,p->memoryPages[index].is_occupied =0, pages in memory=15
++vm.c: swapOut: p->pid 3 removed page in index 6 from memory 
++kalloc.c: kallocWithRef: create first ref to pa 0xdffc000, currnet ref number = 1
++vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x16000
++vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 15 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x11000 is occupied=1 
++
++trap.c: trap: PID 3 NONE is NOT defined, about to handle_aging_counter
++vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x10000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x13000 is occupied=1 
++
++trap.c: trap: PID 3 NONE is NOT defined, about to handle_aging_counter
++vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x12000 is occupied=1 
++
++trap.c: trap: PID 3 NONE is NOT defined, about to handle_aging_counter
++vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0x14000 is occupied=1 
++
++trap.c: trap: PID 3 NONE is NOT defined, about to handle_aging_counter
++vm.c: pushToMemoryPagesArray: p->pid 3 index 5 va=0x15000 is occupied=1 
++
++trap.c: trap: PID 3 NONE is NOT defined, about to handle_aging_counter
++vm.c: pushToMemoryPagesArray: p->pid 3 index 6 va=0xffffffff is occupied=0 
++
++trap.c: trap: PID 3 NONE is NOT defined, about to handle_aging_counter
++vm.c: allocuvm: PID 3 has MAX_PSYC_PAGES (p->pagesInMemory = 16) pages in memory, swaping one page out
++
++trap.c: trap: PID 3 NONE is NOT defined, about to handle_aging_counter
++vm.c: swapOut: enter swapOut for p->pid 3
++vm: selectPageToSwap: PID 3: select page by SCFIFO policy 
++
++trap.c: trap: PID 3 NONE is NOT defined, about to handle_aging_counter
++vm.c: swapOut: PID 3: chose page in index 7 to swap out
++vm.c: swapOut: PID 3 about copy page 0x7000 to swapFile at index 7
++
++trap.c: trap: PID 3 NONE is NOT defined, about to handle_aging_counter
++fs.c: writeToSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++
++trap.c: trap: PID 3 NONE is NOT defined, about to handle_aging_counter
++vm.c: swapOut: PID 3 finished copy page 0x7000 to swapFile at index 7
++kalloc.c: kDecRef: decreased pa 0xdffb000, currnet ref number = -6
++kalloc.c: kDecRef: free pa 0xdffb000, currnet ref number = -6
++vm.c: swapOut: PID 3: removing page in index 7 from p->memoryPages
++vm.c: removePageFromMemory: PID 3 removed page(0x7000) from memory,p->memoryPages[index].is_occupied =0, pages in memory=15
++vm.c: swapOut: p->pid 3 removed page in index 7 from memory 
++kalloc.c: kallocWithRef: create first ref to pa 0xdffb000, currnet ref number = 1
++vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x17000
++vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 15 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x11000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x10000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x13000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x12000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0x14000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 5 va=0x15000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 6 va=0x16000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 7 va=0xffffffff is occupied=0 
++vm.c: allocuvm: PID 3 has MAX_PSYC_PAGES (p->pagesInMemory = 16) pages in memory, swaping one page out
++vm.c: swapOut: enter swapOut for p->pid 3
++vm: selectPageToSwap: PID 3: select page by SCFIFO policy 
++vm.c: swapOut: PID 3: chose page in index 8 to swap out
++vm.c: swapOut: PID 3 about copy page 0x8000 to swapFile at index 8
++fs.c: writeToSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++vm.c: swapOut: PID 3 finished copy page 0x8000 to swapFile at index 8
++kalloc.c: kDecRef: decreased pa 0xdffa000, currnet ref number = -6
++kalloc.c: kDecRef: free pa 0xdffa000, currnet ref number = -6
++vm.c: swapOut: PID 3: removing page in index 8 from p->memoryPages
++vm.c: removePageFromMemory: PID 3 removed page(0x8000) from memory,p->memoryPages[index].is_occupied =0, pages in memory=15
++vm.c: swapOut: p->pid 3 removed page in index 8 from memory 
++kalloc.c: kallocWithRef: create first ref to pa 0xdffa000, currnet ref number = 1
++vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x18000
++vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 15 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x11000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x10000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x13000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x12000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0x14000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 5 va=0x15000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 6 va=0x16000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 7 va=0x17000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 8 va=0xffffffff is occupied=0 
++vm.c: allocuvm: PID 3 has MAX_PSYC_PAGES (p->pagesInMemory = 16) pages in memory, swaping one page out
++vm.c: swapOut: enter swapOut for p->pid 3
++vm: selectPageToSwap: PID 3: select page by SCFIFO policy 
++vm.c: swapOut: PID 3: chose page in index 9 to swap out
++vm.c: swapOut: PID 3 about copy page 0x9000 to swapFile at index 9
++fs.c: writeToSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++vm.c: swapOut: PID 3 finished copy page 0x9000 to swapFile at index 9
++kalloc.c: kDecRef: decreased pa 0xdff9000, currnet ref number = -6
++kalloc.c: kDecRef: free pa 0xdff9000, currnet ref number = -6
++vm.c: swapOut: PID 3: removing page in index 9 from p->memoryPages
++vm.c: removePageFromMemory: PID 3 removed page(0x9000) from memory,p->memoryPages[index].is_occupied =0, pages in memory=15
++vm.c: swapOut: p->pid 3 removed page in index 9 from memory 
++kalloc.c: kallocWithRef: create first ref to pa 0xdff9000, currnet ref number = 1
++vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x19000
++vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 15 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x11000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x10000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x13000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x12000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0x14000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 5 va=0x15000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 6 va=0x16000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 7 va=0x17000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 8 va=0x18000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 9 va=0xffffffff is occupied=0 
++vm.c: allocuvm: PID 3 has MAX_PSYC_PAGES (p->pagesInMemory = 16) pages in memory, swaping one page out
++vm.c: swapOut: enter swapOut for p->pid 3
++vm: selectPageToSwap: PID 3: select page by SCFIFO policy 
++vm.c: swapOut: PID 3: chose page in index 10 to swap out
++vm.c: swapOut: PID 3 about copy page 0xa000 to swapFile at index 10
++fs.c: writeToSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++vm.c: swapOut: PID 3 finished copy page 0xa000 to swapFile at index 10
++kalloc.c: kDecRef: decreased pa 0xdff8000, currnet ref number = -6
++kalloc.c: kDecRef: free pa 0xdff8000, currnet ref number = -6
++vm.c: swapOut: PID 3: removing page in index 10 from p->memoryPages
++vm.c: removePageFromMemory: PID 3 removed page(0xa000) from memory,p->memoryPages[index].is_occupied =0, pages in memory=15
++vm.c: swapOut: p->pid 3 removed page in index 10 from memory 
++kalloc.c: kallocWithRef: create first ref to pa 0xdff8000, currnet ref number = 1
++vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x1a000
++vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 15 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x11000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x10000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x13000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x12000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0x14000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 5 va=0x15000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 6 va=0x16000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 7 va=0x17000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 8 va=0x18000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 9 va=0x19000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 10 va=0xffffffff is occupied=0 
++vm.c: allocuvm: PID 3 has MAX_PSYC_PAGES (p->pagesInMemory = 16) pages in memory, swaping one page out
++vm.c: swapOut: enter swapOut for p->pid 3
++vm: selectPageToSwap: PID 3: select page by SCFIFO policy 
++vm.c: swapOut: PID 3: chose page in index 11 to swap out
++vm.c: swapOut: PID 3 about copy page 0xb000 to swapFile at index 11
++fs.c: writeToSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++vm.c: swapOut: PID 3 finished copy page 0xb000 to swapFile at index 11
++kalloc.c: kDecRef: decreased pa 0xdff7000, currnet ref number = -6
++kalloc.c: kDecRef: free pa 0xdff7000, currnet ref number = -6
++vm.c: swapOut: PID 3: removing page in index 11 from p->memoryPages
++vm.c: removePageFromMemory: PID 3 removed page(0xb000) from memory,p->memoryPages[index].is_occupied =0, pages in memory=15
++vm.c: swapOut: p->pid 3 removed page in index 11 from memory 
++kalloc.c: kallocWithRef: create first ref to pa 0xdff7000, currnet ref number = 1
++vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x1b000
++vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 15 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x11000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x10000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x13000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x12000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0x14000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 5 va=0x15000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 6 va=0x16000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 7 va=0x17000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 8 va=0x18000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 9 va=0x19000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 10 va=0x1a000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 11 va=0xffffffff is occupied=0 
++vm.c: allocuvm: PID 3 has MAX_PSYC_PAGES (p->pagesInMemory = 16) pages in memory, swaping one page out
++vm.c: swapOut: enter swapOut for p->pid 3
++vm: selectPageToSwap: PID 3: select page by SCFIFO policy 
++vm.c: swapOut: PID 3: chose page in index 12 to swap out
++vm.c: swapOut: PID 3 about copy page 0xc000 to swapFile at index 12
++fs.c: writeToSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++vm.c: swapOut: PID 3 finished copy page 0xc000 to swapFile at index 12
++kalloc.c: kDecRef: decreased pa 0xdff6000, currnet ref number = -6
++kalloc.c: kDecRef: free pa 0xdff6000, currnet ref number = -6
++vm.c: swapOut: PID 3: removing page in index 12 from p->memoryPages
++vm.c: removePageFromMemory: PID 3 removed page(0xc000) from memory,p->memoryPages[index].is_occupied =0, pages in memory=15
++vm.c: swapOut: p->pid 3 removed page in index 12 from memory 
++kalloc.c: kallocWithRef: create first ref to pa 0xdff6000, currnet ref number = 1
++vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x1c000
++vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 15 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x11000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x10000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x13000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x12000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0x14000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 5 va=0x15000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 6 va=0x16000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 7 va=0x17000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 8 va=0x18000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 9 va=0x19000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 10 va=0x1a000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 11 va=0x1b000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 12 va=0xffffffff is occupied=0 
++vm.c: allocuvm: PID 3 has MAX_PSYC_PAGES (p->pagesInMemory = 16) pages in memory, swaping one page out
++vm.c: swapOut: enter swapOut for p->pid 3
++vm: selectPageToSwap: PID 3: select page by SCFIFO policy 
++vm.c: swapOut: PID 3: chose page in index 13 to swap out
++vm.c: swapOut: PID 3 about copy page 0xd000 to swapFile at index 13
++fs.c: writeToSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++vm.c: swapOut: PID 3 finished copy page 0xd000 to swapFile at index 13
++kalloc.c: kDecRef: decreased pa 0xdff5000, currnet ref number = -6
++kalloc.c: kDecRef: free pa 0xdff5000, currnet ref number = -6
++vm.c: swapOut: PID 3: removing page in index 13 from p->memoryPages
++vm.c: removePageFromMemory: PID 3 removed page(0xd000) from memory,p->memoryPages[index].is_occupied =0, pages in memory=15
++vm.c: swapOut: p->pid 3 removed page in index 13 from memory 
++kalloc.c: kallocWithRef: create first ref to pa 0xdff5000, currnet ref number = 1
++vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x1d000
++vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 15 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x11000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x10000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x13000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x12000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0x14000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 5 va=0x15000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 6 va=0x16000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 7 va=0x17000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 8 va=0x18000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 9 va=0x19000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 10 va=0x1a000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 11 va=0x1b000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 12 va=0x1c000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 13 va=0xffffffff is occupied=0 
++vm.c: allocuvm: PID 3 has MAX_PSYC_PAGES (p->pagesInMemory = 16) pages in memory, swaping one page out
++vm.c: swapOut: enter swapOut for p->pid 3
++vm: selectPageToSwap: PID 3: select page by SCFIFO policy 
++vm.c: swapOut: PID 3: chose page in index 14 to swap out
++vm.c: swapOut: PID 3 about copy page 0xe000 to swapFile at index 14
++fs.c: writeToSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++vm.c: swapOut: PID 3 finished copy page 0xe000 to swapFile at index 14
++kalloc.c: kDecRef: decreased pa 0xdff4000, currnet ref number = -6
++kalloc.c: kDecRef: free pa 0xdff4000, currnet ref number = -6
++vm.c: swapOut: PID 3: removing page in index 14 from p->memoryPages
++vm.c: removePageFromMemory: PID 3 removed page(0xe000) from memory,p->memoryPages[index].is_occupied =0, pages in memory=15
++vm.c: swapOut: p->pid 3 removed page in index 14 from memory 
++kalloc.c: kallocWithRef: create first ref to pa 0xdff4000, currnet ref number = 1
++vm.c: allocuvm: PID 3:  about to pushToMemoryPagesArray va =0x1e000
++vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 15 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x11000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x10000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x13000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x12000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0x14000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 5 va=0x15000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 6 va=0x16000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 7 va=0x17000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 8 va=0x18000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 9 va=0x19000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 10 va=0x1a000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 11 va=0x1b000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 12 va=0x1c000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 13 va=0x1d000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 14 va=0xffffffff is occupied=0 
++vm.c: allocuvm: PID 3 exit allocuvm ,p->pagesInMemory=16, p->pagesInSwap=15
++
++vm.c: printPagesInSwap: PID 3 SWAP pages list:
++vm.c: printPagesInSwap: index: 0, is_occupied: 1, va: 0x1000 
++vm.c: printPagesInSwap: index: 1, is_occupied: 1, va: 0x0 
++vm.c: printPagesInSwap: index: 2, is_occupied: 1, va: 0x3000 
++vm.c: printPagesInSwap: index: 3, is_occupied: 1, va: 0x2000 
++vm.c: printPagesInSwap: index: 4, is_occupied: 1, va: 0x4000 
++vm.c: printPagesInSwap: index: 5, is_occupied: 1, va: 0x5000 
++vm.c: printPagesInSwap: index: 6, is_occupied: 1, va: 0x6000 
++vm.c: printPagesInSwap: index: 7, is_occupied: 1, va: 0x7000 
++
++trap.c: trap: PID 3 NONE is NOT defined, about to handle_aging_counter
++vm.c: printPagesInSwap: index: 8, is_occupied: 1, va: 0x8000 
++
++trap.c: trap: PID 3 NONE is NOT defined, about to handle_aging_counter
++vm.c: printPagesInSwap: index: 9, is_occupied: 1, va: 0x9000 
++vm.c: printPagesInSwap: index: 10, is_occupied: 1, va: 0xa000 
++
++trap.c: trap: PID 3 NONE is NOT defined, about to handle_aging_counter
++vm.c: printPagesInSwap: index: 11, is_occupied: 1, va: 0xb000 
++vm.c: printPagesInSwap: index: 12, is_occupied: 1, va: 0xc000 
++
++trap.c: trap: PID 3 NONE is NOT defined, about to handle_aging_counter
++vm.c: printPagesInSwap: index: 13, is_occupied: 1, va: 0xd000 
++
++trap.c: trap: PID 3 NONE is NOT defined, about to handle_aging_counter
++vm.c: printPagesInSwap: index: 14, is_occupied: 1, va: 0xe000 
++vm.c: printPagesInSwap: index: 15, is_occupied: 0, va: 0xffffffff 
++vm.c: printPagesInSwap: index: 16, is_occupied: 0, va: 0xffffffff 
++
++vm.c: pritntProcMemoryPages: PID 3 memory pages list:
++
++trap.c: trap: PID 3 NONE is NOT defined, about to handle_aging_counter
++vm.c: pritntProcMemoryPages: index: 0, is_occupied: 1, va: 0x11000, age: 0, next: 3, prev: 1  
++
++trap.c: trap: PID 3 NONE is NOT defined, about to handle_aging_counter
++vm.c: pritntProcMemoryPages: index: 1, is_occupied: 1, va: 0x10000, age: 0, next: 0, prev: 15  
++
++trap.c: trap: PID 3 NONE is NOT defined, about to handle_aging_counter
++vm.c: pritntProcMemoryPages: index: 2, is_occupied: 1, va: 0x13000, age: 0, next: 4, prev: 3  
++
++trap.c: trap: PID 3 NONE is NOT defined, about to handle_aging_counter
++vm.c: pritntProcMemoryPages: index: 3, is_occupied: 1, va: 0x12000, age: 0, next: 2, prev: 0  
++
++trap.c: trap: PID 3 NONE is NOT defined, about to handle_aging_counter
++vm.c: pritntProcMemoryPages: index: 4, is_occupied: 1, va: 0x14000, age: 0, next: 5, prev: 2  
++
++trap.c: trap: PID 3 NONE is NOT defined, about to handle_aging_counter
++vm.c: pritntProcMemoryPages: index: 5, is_occupied: 1, va: 0x15000, age: 0, next: 6, prev: 4  
++
++trap.c: trap: PID 3 NONE is NOT defined, about to handle_aging_counter
++vm.c: pritntProcMemoryPages: index: 6, is_occupied: 1, va: 0x16000, age: 0, next: 7, prev: 5  
++
++trap.c: trap: PID 3 NONE is NOT defined, about to handle_aging_counter
++vm.c: pritntProcMemoryPages: index: 7, is_occupied: 1, va: 0x17000, age: 0, next: 8, prev: 6  
++
++trap.c: trap: PID 3 NONE is NOT defined, about to handle_aging_counter
++vm.c: pritntProcMemoryPages: index: 8, is_occupied: 1, va: 0x18000, age: 0, next: 9, prev: 7  
++
++trap.c: trap: PID 3 NONE is NOT defined, about to handle_aging_counter
++vm.c: pritntProcMemoryPages: index: 9, is_occupied: 1, va: 0x19000, age: 0, next: 10, prev: 8  
++
++trap.c: trap: PID 3 NONE is NOT defined, about to handle_aging_counter
++vm.c: pritntProcMemoryPages: index: 10, is_occupied: 1, va: 0x1a000, age: 0, next: 11, prev: 9  
++
++trap.c: trap: PID 3 NONE is NOT defined, about to handle_aging_counter
++vm.c: pritntProcMemoryPages: index: 11, is_occupied: 1, va: 0x1b000, age: 0, next: 12, prev: 10  
++
++trap.c: trap: PID 3 NONE is NOT defined, about to handle_aging_counter
++vm.c: pritntProcMemoryPages: index: 12, is_occupied: 1, va: 0x1c000, age: 0, next: 13, prev: 11  
++
++trap.c: trap: PID 3 NONE is NOT defined, about to handle_aging_counter
++vm.c: pritntProcMemoryPages: index: 13, is_occupied: 1, va: 0x1d000, age: 0, next: 14, prev: 12  
++
++trap.c: trap: PID 3 NONE is NOT defined, about to handle_aging_counter
++vm.c: pritntProcMemoryPages: index: 14, is_occupied: 1, va: 0x1e000, age: 0, next: -1, prev: 13  
++
++trap.c: trap: PID 3 NONE is NOT defined, about to handle_aging_counter
++vm.c: pritntProcMemoryPages: index: 15, is_occupied: 1, va: 0xf000, age: 0, next: 1, prev: -1  
++
++trap.c: trap: PID 3 NONE is NOT defined, about to handle_aging_counter
++trap.c: trap: PID 3: T_PGFLT on address 0x581
++ trap.c: trap: PID 3: pagefault, page is in swap on address 0x581
++ vm.c: loadPageToMemory: PID 3: enter loadPageToMemory of page 0x0 for va 0x581 vm.c: swapOut: enter swapOut for p->pid 3
++vm: selectPageToSwap: PID 3: select page by SCFIFO policy 
++vm.c: swapOut: PID 3: chose page in index 15 to swap out
++vm.c: swapOut: PID 3 about copy page 0xf000 to swapFile at index 15
++fs.c: writeToSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++vm.c: swapOut: PID 3 finished copy page 0xf000 to swapFile at index 15
++kalloc.c: kDecRef: decreased pa 0xdff3000, currnet ref number = -6
++kalloc.c: kDecRef: free pa 0xdff3000, currnet ref number = -6
++vm.c: swapOut: PID 3: removing page in index 15 from p->memoryPages
++vm.c: removePageFromMemory: PID 3 removed page(0xf000) from memory,p->memoryPages[index].is_occupied =0, pages in memory=15
++vm.c: swapOut: p->pid 3 removed page in index 15 from memory 
++kalloc.c: kallocWithRef: create first ref to pa 0xdff3000, currnet ref number = 1
++fs.c: readFromSwapFile: PID 3 wrote to file after fork ,pages in memory= 15
++vm.c: loadPageToMemory: PID 3:  about to pushToMemoryPagesArray va =0x0
++vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 15 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x11000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0x10000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 2 va=0x13000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 3 va=0x12000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 4 va=0x14000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 5 va=0x15000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 6 va=0x16000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 7 va=0x17000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 8 va=0x18000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 9 va=0x19000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 10 va=0x1a000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 11 va=0x1b000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 12 va=0x1c000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 13 va=0x1d000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 14 va=0x1e000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 15 va=0xffffffff is occupied=0 
++vm.c: loadPageToMemory: PID 3:  SUCCESSFULY pushToMemoryPagesArray va =0x0
++vm.c: loadPageToMemory: PID 3: about removeFromPagesInSwap index 1 va =0x0
++vm.c: loadPageToMemory: PID 3: SUCCESSFULY removed removeFromPagesInSwap index 1 
++vm.c: loadPageToMemory: PID 3: SUCCESSFULY loadPageToMemory pageVA 0x0 , exit the func with 0
++trap.c: trap: PID 3: T_PGFLT on address 0x2fac
++ trap.c: trap: PID 3: pagefault, page is in swap on address 0x2fac
++ vm.c: loadPageToMemory: PID 3: enter loadPageToMemory of page 0x2000 for va 0x2fac vm.c: swapOut: enter swapOut for p->pid 3
++vm: selectPageToSwap: PID 3: select page by SCFIFO policy 
++vm.c: swapOut: PID 3: chose page in index 1 to swap out
++vm.c: swapOut: PID 3 about copy page 0x10000 to swapFile at index 1
++fs.c: writeToSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++vm.c: swapOut: PID 3 finished copy page 0x10000 to swapFile at index 1
++kalloc.c: kDecRef: decreased pa 0xdee0000, currnet ref number = -2
++kalloc.c: kDecRef: free pa 0xdee0000, currnet ref number = -2
++vm.c: swapOut: PID 3: removing page in index 1 from p->memoryPages
++vm.c: removePageFromMemory: PID 3 removed page(0x10000) from memory,p->memoryPages[index].is_occupied =0, pages in memory=15
++vm.c: swapOut: p->pid 3 removed page in index 1 from memory 
++kalloc.c: kallocWithRef: create first ref to pa 0xdee0000, currnet ref number = 1
++fs.c: readFromSwapFile: PID 3 wrote to file after fork ,pages in memory= 15
++vm.c: loadPageToMemory: PID 3:  about to pushToMemoryPagesArray va =0x2000
++vm.c: pushToMemoryPagesArray: enter with p->pid 3, p->pagesInMemory = 15 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 0 va=0x11000 is occupied=1 
++vm.c: pushToMemoryPagesArray: p->pid 3 index 1 va=0xffffffff is occupied=0 
++vm.c: loadPageToMemory: PID 3:  SUCCESSFULY pushToMemoryPagesArray va =0x2000
++vm.c: loadPageToMemory: PID 3: about removeFromPagesInSwap index 3 va =0x2000
++vm.c: loadPageToMemory: PID 3: SUCCESSFULY removed removeFromPagesInSwap index 3 
++vm.c: loadPageToMemory: PID 3: SUCCESSFULY loadPageToMemory pageVA 0x2000 , exit the func with 0
++ass3Tests:  alocated buff
++proc.c: allocproc: PID 6 start initializing proc  current pages in memory=0
++kalloc.c: kalloc: create first ref to pa 0xdff2000, currnet ref number = 1
++proc.c: allocproc: PID 6 about to initialize p->pagesInMemory=0 ,  current pages in memory=0
++proc.c: fork: np->pid 6 allocated process, pages in memory=0
++kalloc.c: kalloc: create first ref to pa 0xdff1000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdff0000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfef000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfee000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfed000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfec000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfeb000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfea000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfe9000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfe8000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfe7000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfe6000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfe5000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfe4000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfe3000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfe2000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfe1000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfe0000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfdf000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfde000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfdd000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfdc000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfdb000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfda000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfd9000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfd8000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfd7000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfd6000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfd5000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfd4000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfd3000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfd2000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfd1000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfd0000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfcf000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfce000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfcd000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfcc000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfcb000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfca000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfc9000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfc8000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfc7000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfc6000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfc5000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfc4000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfc3000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfc2000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfc1000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfc0000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfbf000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdf24000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdea5000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdfbc000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdf27000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdea7000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdea8000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdea9000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdeaa000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdeab000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdeac000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdead000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdeae000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdeaf000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdeb0000, currnet ref number = 1
++kalloc.c: kalloc: create first ref to pa 0xdeb1000, currnet ref number = 1
++kalloc.c: kIncRef: increased pa 0xdff3000, currnet ref number = 2
++kalloc.c: kIncRef: increased pa 0xdee0000, currnet ref number = 2
++kalloc.c: kIncRef: increased pa 0xdee2000, currnet ref number = 2
++kalloc.c: kIncRef: increased pa 0xdf76000, currnet ref number = 2
++kalloc.c: kIncRef: increased pa 0xdf25000, currnet ref number = 2
++kalloc.c: kIncRef: increased pa 0xdf75000, currnet ref number = 2
++kalloc.c: kIncRef: increased pa 0xdffd000, currnet ref number = 2
++kalloc.c: kIncRef: increased pa 0xdffc000, currnet ref number = 2
++kalloc.c: kIncRef: increased pa 0xdffb000, currnet ref number = 2
++kalloc.c: kIncRef: increased pa 0xdffa000, currnet ref number = 2
++kalloc.c: kIncRef: increased pa 0xdff9000, currnet ref number = 2
++kalloc.c: kIncRef: increased pa 0xdff8000, currnet ref number = 2
++kalloc.c: kIncRef: increased pa 0xdff7000, currnet ref number = 2
++kalloc.c: kIncRef: increased pa 0xdff6000, currnet ref number = 2
++kalloc.c: kIncRef: increased pa 0xdff5000, currnet ref number = 2
++kalloc.c: kIncRef: increased pa 0xdff4000, currnet ref number = 2
++proc.c: fork: np->pid 6 copyied process state from proc, pages in memory=0
++proc.c: fork: np->pid 6 before start of copy pages data, pages in memory=0
++proc.c: fork: PID 3 np->pid = 6
++proc.c: fork: size of buffer in fork: 2048
++fs.c: readFromSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++fs.c: writeToSwapFile: PID 6 wrote to file after fork ,pages in memory= 16
++fs.c: readFromSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++fs.c: writeToSwapFile: PID 6 wrote to file after fork ,pages in memory= 16
++fs.c: readFromSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++fs.c: writeToSwapFile: PID 6 wrote to file after fork ,pages in memory= 16
++fs.c: readFromSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++fs.c: writeToSwapFile: PID 6 wrote to file after fork ,pages in memory= 16
++fs.c: readFromSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++fs.c: writeToSwapFile: PID 6 wrote to file after fork ,pages in memory= 16
++fs.c: readFromSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++fs.c: writeToSwapFile: PID 6 wrote to file after fork ,pages in memory= 16
++fs.c: readFromSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++fs.c: writeToSwapFile: PID 6 wrote to file after fork ,pages in memory= 16
++fs.c: readFromSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++fs.c: writeToSwapFile: PID 6 wrote to file after fork ,pages in memory= 16
++fs.c: readFromSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++fs.c: writeToSwapFile: PID 6 wrote to file after fork ,pages in memory= 16
++fs.c: readFromSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++fs.c: writeToSwapFile: PID 6 wrote to file after fork ,pages in memory= 16
++fs.c: readFromSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++fs.c: writeToSwapFile: PID 6 wrote to file after fork ,pages in memory= 16
++fs.c: readFromSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++fs.c: writeToSwapFile: PID 6 wrote to file after fork ,pages in memory= 16
++fs.c: readFromSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++fs.c: writeToSwapFile: PID 6 wrote to file after fork ,pages in memory= 16
++fs.c: readFromSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++fs.c: writeToSwapFile: PID 6 wrote to file after fork ,pages in memory= 16
++fs.c: readFromSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++fs.c: writeToSwapFile: PID 6 wrote to file after fork ,pages in memory= 16
++fs.c: readFromSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++fs.c: writeToSwapFile: PID 6 wrote to file after fork ,pages in memory= 16
++fs.c: readFromSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++fs.c: writeToSwapFile: PID 6 wrote to file after fork ,pages in memory= 16
++fs.c: readFromSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++fs.c: writeToSwapFile: PID 6 wrote to file after fork ,pages in memory= 16
++fs.c: readFromSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++fs.c: writeToSwapFile: PID 6 wrote to file after fork ,pages in memory= 16
++fs.c: readFromSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++fs.c: writeToSwapFile: PID 6 wrote to file after fork ,pages in memory= 16
++fs.c: readFromSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++fs.c: writeToSwapFile: PID 6 wrote to file after fork ,pages in memory= 16
++fs.c: readFromSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++fs.c: writeToSwapFile: PID 6 wrote to file after fork ,pages in memory= 16
++fs.c: readFromSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++fs.c: writeToSwapFile: PID 6 wrote to file after fork ,pages in memory= 16
++fs.c: readFromSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++fs.c: writeToSwapFile: PID 6 wrote to file after fork ,pages in memory= 16
++fs.c: readFromSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++fs.c: writeToSwapFile: PID 6 wrote to file after fork ,pages in memory= 16
++fs.c: readFromSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++fs.c: writeToSwapFile: PID 6 wrote to file after fork ,pages in memory= 16
++fs.c: readFromSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++fs.c: writeToSwapFile: PID 6 wrote to file after fork ,pages in memory= 16
++fs.c: readFromSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++fs.c: writeToSwapFile: PID 6 wrote to file after fork ,pages in memory= 16
++fs.c: readFromSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++fs.c: writeToSwapFile: PID 6 wrote to file after fork ,pages in memory= 16
++fs.c: readFromSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++fs.c: writeToSwapFile: PID 6 wrote to file after fork ,pages in memory= 16
++fs.c: readFromSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++fs.c: writeToSwapFile: PID 6 wrote to file after fork ,pages in memory= 16
++fs.c: readFromSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++fs.c: writeToSwapFile: PID 6 wrote to file after fork ,pages in memory= 16
++fs.c: readFromSwapFile: PID 3 wrote to file after fork ,pages in memory= 16
++proc.c: fork: PID 3 SUCCESSFULY created new proc np->pid =6, np->pagesInMemory=16
++trap.c: trap: PID 6: T_PGFLT on address 0x2fbc
++ 
++trap.c: trap: PID 3 NONE is NOT defined, about to handle_aging_counter
++trap.c: trap: PID 3: T_PGFLT on address 0x2fbc
++ PID 3: trap.c: trap: T_PGFLT we couldnt cach, address 0x2fbc *pte=0xdee0865
++lapicid 0: panic: panicccc
++ 80106de1 8010697f 0 0 0 0 0 0 0 0os202@os202-lubuntu:~/Desktop/maya/xv6$ 
++ 865 
++ 0x800 COW
++ 0x040 dirty
++ 0x020 a
++ 0x004 U
++ 0x001 P 
+\ No newline at end of file
+diff --git a/defs.h b/defs.h
+index be45622..675dedb 100644
+--- a/defs.h
++++ b/defs.h
+@@ -78,6 +78,14 @@ char*           kalloc(void);
+ void            kfree(char*);
+ void            kinit1(void*, void*);
+ void            kinit2(void*, void*);
++//OUR
++int             currFreePages(void);
++int             totalFreePages(void);
++void            kDecRef(char*);
++void            kIncRef(char*);
++int             kGetRef(char*);
++char*           kallocWithRef(void);
++
+ 
+ // kbd.c
+ void            kbdintr(void);
+@@ -130,6 +138,12 @@ void            userinit(void);
+ int             wait(void);
+ void            wakeup(void*);
+ void            yield(void);
++//OURS
++struct proc*    procOfpgdir(pde_t*); 
++void            init_page_arrays(struct proc*);
++void            duplicate_page_arrays(struct proc*, struct proc*);
++void            handle_aging_counter(struct proc*);
++int             getNumFreePages(void);
+ 
+ // swtch.S
+ void            swtch(struct context**, struct context*);
+@@ -195,6 +209,17 @@ void            switchuvm(struct proc*);
+ void            switchkvm(void);
+ int             copyout(pde_t*, uint, void*, uint);
+ void            clearpteu(pde_t *pgdir, char *uva);
++//OURS
++int             pushToMemoryPagesArray(struct proc* p, uint va);
++int             checkPTE_A(struct proc*, uint);
++int             isValidUserProc(struct proc*p);
++uint            getPTE(pde_t *pgdir, const void *va);
++int             loadPageToMemory(uint address);
++int             swapOut();
++pde_t*          cowuvm(pde_t*, uint);
++void            handle_COW_write_fault(struct proc*, uint);
++
++
+ 
+ // number of elements in fixed-size array
+ #define NELEM(x) (sizeof(x)/sizeof((x)[0]))
+diff --git a/exec.c b/exec.c
+index b40134f..d69d12f 100644
+--- a/exec.c
++++ b/exec.c
+@@ -7,9 +7,25 @@
+ #include "x86.h"
+ #include "elf.h"
+ 
++
+ int
+ exec(char *path, char **argv)
+-{
++{ 
++  int NONEisDefined = 0;
++  #ifdef NONE
++    NONEisDefined=1;
++  #endif
++
++    struct memoryPages_e MP[MAX_PSYC_PAGES];  
++    struct swap_e SP[17];
++    int pInMemory=0;
++    int pInSwap= 0;
++    int headPM= 0;
++    int tailPM=0;
++    int pageOut=0;
++    int pageFault=0;
++ 
++
+   char *s, *last;
+   int i, off;
+   uint argc, sz, sp, ustack[3+MAXARG+1];
+@@ -18,6 +34,7 @@ exec(char *path, char **argv)
+   struct proghdr ph;
+   pde_t *pgdir, *oldpgdir;
+   struct proc *curproc = myproc();
++  if(1 && DEBUG) cprintf("exec.c: PID %d enter exec\n",curproc->pid); 
+ 
+   begin_op();
+ 
+@@ -38,6 +55,33 @@ exec(char *path, char **argv)
+   if((pgdir = setupkvm()) == 0)
+     goto bad;
+ 
++  //backup the fields
++  //if we have a policy such as AQ/ NFUA/ LAPA
++  if(!NONEisDefined){ 
++
++    pInMemory= curproc->pagesInMemory;
++    pInSwap= curproc->pagesInSwap;
++    headPM= curproc->headOfMemoryPages;
++    tailPM=curproc->tailOfMemoryPages;
++    pageOut=curproc->numOfPagedOut;
++    pageFault=curproc->numOfPagedFault;
++
++ 
++    for (int i = 0; i < MAX_PSYC_PAGES; i++){
++        SP[i].is_occupied=curproc->swapPages[i].is_occupied;
++        SP[i].va=curproc->swapPages[i].va;
++        MP[i].va=curproc->memoryPages[i].va;
++        MP[i].prev=curproc->memoryPages[i].prev;
++        MP[i].next=curproc->memoryPages[i].next;
++        MP[i].age=curproc->memoryPages[i].age;
++        MP[i].is_occupied=curproc->memoryPages[i].is_occupied;
++        if(i==MAX_PSYC_PAGES-1){
++          SP[i+1].is_occupied=curproc->swapPages[i+1].is_occupied;
++          SP[i+1].va=curproc->swapPages[i+1].va;  
++        }
++      }       
++  }
++
+   // Load program into memory.
+   sz = 0;
+   for(i=0, off=elf.phoff; i<elf.phnum; i++, off+=sizeof(ph)){
+@@ -49,6 +93,7 @@ exec(char *path, char **argv)
+       goto bad;
+     if(ph.vaddr + ph.memsz < ph.vaddr)
+       goto bad;
++    if(1 && DEBUG) cprintf("exec.c: Load program into memory: PID %d about to sz = allocuvm ,  current pages in memory=%d\n",curproc->pid,curproc->pagesInMemory);
+     if((sz = allocuvm(pgdir, sz, ph.vaddr + ph.memsz)) == 0)
+       goto bad;
+     if(ph.vaddr % PGSIZE != 0)
+@@ -93,14 +138,47 @@ exec(char *path, char **argv)
+       last = s+1;
+   safestrcpy(curproc->name, last, sizeof(curproc->name));
+ 
++  //resetting the swap file 
++  if(!NONEisDefined){    
++    if(!(curproc->pid==1 || curproc->parent->pid==1)){
++      removeSwapFile(curproc);
++      createSwapFile(curproc);
++    }
++  }
++
++
+   // Commit to the user image.
+   oldpgdir = curproc->pgdir;
+   curproc->pgdir = pgdir;
+   curproc->sz = sz;
++  //maya & avishai BEGIN
++  if(!NONEisDefined){ 
++    if(curproc->pid > 2){
++
++      //reset proc paging data 
++      init_page_arrays(curproc);
++
++      curproc->pagesInMemory=0;
++      curproc->pagesInSwap=0;
++      curproc->headOfMemoryPages=-1;
++      curproc->tailOfMemoryPages=-1;
++      curproc->numOfPagedFault=0;
++      curproc->numOfPagedOut=0;
++
++      //update new pages;
++      for(i=0; i < sz/PGSIZE ;i++){
++          pushToMemoryPagesArray(curproc,i*PGSIZE);
++      }
++    }
++    //maya & avishai END
++  }
++
++  
+   curproc->tf->eip = elf.entry;  // main
+   curproc->tf->esp = sp;
+   switchuvm(curproc);
+   freevm(oldpgdir);
++  if(1 && DEBUG) cprintf("exec.c: PID %d SUCCCESSFULY exec \n",curproc->pid); 
+   return 0;
+ 
+  bad:
+@@ -110,5 +188,34 @@ exec(char *path, char **argv)
+     iunlockput(ip);
+     end_op();
+   }
++  //restore proc original data
++  if(!NONEisDefined){  
++    curproc->headOfMemoryPages=headPM;
++    curproc->tailOfMemoryPages=tailPM;
++    curproc->pagesInSwap=pInSwap;
++    curproc->pagesInMemory=pInMemory;
++    curproc->numOfPagedOut=pageOut;
++    curproc->numOfPagedFault=pageFault;
++    
++    for (int i = 0; i < MAX_PSYC_PAGES; i++)
++      {
++        
++        curproc->swapPages[i].is_occupied=SP[i].is_occupied;
++        curproc->swapPages[i].va=SP[i].va;
++        curproc->memoryPages[i].va=MP[i].va;
++        curproc->memoryPages[i].prev=MP[i].prev;
++        curproc->memoryPages[i].next=MP[i].next;
++        curproc->memoryPages[i].age=MP[i].age;
++        curproc->memoryPages[i].is_occupied=MP[i].is_occupied;
++        
++        if(i==MAX_PSYC_PAGES-1){
++          curproc->swapPages[i+1].is_occupied=SP[i+1].is_occupied;
++          curproc->swapPages[i+1].va=SP[i+1].va; 
++          
++        }
++      }       
++  }
++  if(1 && DEBUG) cprintf("exec.c: PID %d FAILED to exec\n",curproc->pid); 
+   return -1;
+ }
++
+diff --git a/fs.c b/fs.c
+index 966e978..4eec841 100644
+--- a/fs.c
++++ b/fs.c
+@@ -793,6 +793,7 @@ createSwapFile(struct proc* p)
+ int
+ writeToSwapFile(struct proc * p, char* buffer, uint placeOnFile, uint size)
+ {
++  if(1 && DEBUG) cprintf("fs.c: writeToSwapFile: PID %d wrote to file after fork ,pages in memory= %d\n",p->pid,p->pagesInMemory);
+   p->swapFile->off = placeOnFile;
+ 
+   return filewrite(p->swapFile, buffer, size);
+@@ -803,6 +804,7 @@ writeToSwapFile(struct proc * p, char* buffer, uint placeOnFile, uint size)
+ int
+ readFromSwapFile(struct proc * p, char* buffer, uint placeOnFile, uint size)
+ {
++  if(1 && DEBUG) cprintf("fs.c: readFromSwapFile: PID %d wrote to file after fork ,pages in memory= %d\n",p->pid,p->pagesInMemory);
+   p->swapFile->off = placeOnFile;
+ 
+   return fileread(p->swapFile, buffer,  size);
+diff --git a/kalloc.c b/kalloc.c
+index 14cd4f4..2ce4884 100644
+--- a/kalloc.c
++++ b/kalloc.c
+@@ -9,20 +9,38 @@
+ #include "mmu.h"
+ #include "spinlock.h"
+ 
++#define AVISHAIISCRAZY 1
++
+ void freerange(void *vstart, void *vend);
+ extern char end[]; // first address after kernel loaded from ELF file
+                    // defined by the kernel linker script in kernel.ld
++int tFreePages=0;
++int freePagesCounter=0;
+ 
+ struct run {
+   struct run *next;
++  int refrences;
+ };
+ 
+ struct {
+   struct spinlock lock;
+   int use_lock;
+   struct run *freelist;
++  struct run ref[MAXPAGES]; //num of refrences for each page
+ } kmem;
+ 
++
++//manage total free pages count - OURS for part 4
++int
++totalFreePages(void){
++  return tFreePages;
++}
++
++int 
++currFreePages(void){
++  return freePagesCounter;
++}
++
+ // Initialization happens in two phases.
+ // 1. main() calls kinit1() while still using entrypgdir to place just
+ // the pages mapped by entrypgdir on free list.
+@@ -34,6 +52,8 @@ kinit1(void *vstart, void *vend)
+   initlock(&kmem.lock, "kmem");
+   kmem.use_lock = 0;
+   freerange(vstart, vend);
++  //update totalFreePages MAYAs changges
++  tFreePages+= (PGROUNDDOWN((uint)vend) - PGROUNDUP((uint)vstart))/PGSIZE; 
+ }
+ 
+ void
+@@ -41,6 +61,8 @@ kinit2(void *vstart, void *vend)
+ {
+   freerange(vstart, vend);
+   kmem.use_lock = 1;
++  //update totalFreePages
++  tFreePages+= (PGROUNDDOWN((uint)vend) - PGROUNDUP((uint)vstart))/PGSIZE;
+ }
+ 
+ void
+@@ -51,6 +73,7 @@ freerange(void *vstart, void *vend)
+   for(; p + PGSIZE <= (char*)vend; p += PGSIZE)
+     kfree(p);
+ }
++
+ //PAGEBREAK: 21
+ // Free the page of physical memory pointed at by v,
+ // which normally should have been returned by a
+@@ -60,6 +83,17 @@ void
+ kfree(char *v)
+ {
+   struct run *r;
++#if AVISHAIISCRAZY
++  //decrese the ref counter
++  if(kmem.use_lock)
++    acquire(&kmem.lock);
++  r=&kmem.ref[V2P(v)/PGSIZE]; //r is the struct of the page
++  r->refrences--;
++  if(kmem.use_lock)
++    release(&kmem.lock);
++  if((1 &&  DEBUG) && KDEBUG ) cprintf("kalloc.c: kfree: decreased pa 0x%x, currnet ref number = %d\n",V2P(v),r->refrences);
++  if(r->refrences <= 0){
++#endif
+ 
+   if((uint)v % PGSIZE || v < end || V2P(v) >= PHYSTOP)
+     panic("kfree");
+@@ -69,11 +103,18 @@ kfree(char *v)
+ 
+   if(kmem.use_lock)
+     acquire(&kmem.lock);
++  // r=&kmem.ref[V2P(v)/PGSIZE]; //r is the refrences for v page
+   r = (struct run*)v;
+   r->next = kmem.freelist;
++  r->refrences=0; //init the refrence count for this page
+   kmem.freelist = r;
++  //update counter
++  freePagesCounter++; 
+   if(kmem.use_lock)
+     release(&kmem.lock);
++#if AVISHAIISCRAZY
++  }
++#endif
+ }
+ 
+ // Allocate one 4096-byte page of physical memory.
+@@ -87,10 +128,99 @@ kalloc(void)
+   if(kmem.use_lock)
+     acquire(&kmem.lock);
+   r = kmem.freelist;
+-  if(r)
++  if(r){
+     kmem.freelist = r->next;
++     r->refrences=1; //allocated page has 1 refrence to it
++  }
++  //update counter
++   freePagesCounter--;
+   if(kmem.use_lock)
+     release(&kmem.lock);
++
++  if((1 &&  DEBUG)|| KDEBUG ) cprintf("kalloc.c: kalloc: create first ref to pa 0x%x, currnet ref number = %d\n",V2P(r),r->refrences);
++
+   return (char*)r;
+ }
+ 
++// Allocate one 4096-byte page of physical memory.
++// Returns a pointer that the kernel can use.
++// Returns 0 if the memory cannot be allocated.
++char*
++kallocWithRef(void)
++{
++  struct run *r;
++  // char* v = kalloc();
++  // if(kmem.use_lock)
++  //   acquire(&kmem.lock);
++  // r=&kmem.ref[V2P(v)/PGSIZE]; //r is the refrences for v page
++  // r->refrences=1;
++  // if(kmem.use_lock)
++  //   release(&kmem.lock);
++  
++
++  if(kmem.use_lock)
++    acquire(&kmem.lock);
++  r = kmem.freelist;
++  if(r){
++    kmem.freelist = r->next;
++    r->refrences=1; //allocated page has 1 refrence to it
++  }
++  //update counter
++   freePagesCounter--;
++  if(kmem.use_lock)
++    release(&kmem.lock);
++
++  if((1 &&  DEBUG)|| KDEBUG ) cprintf("kalloc.c: kallocWithRef: create first ref to pa 0x%x, currnet ref number = %d\n",V2P(r),r->refrences);
++
++  return (char*)r;
++}
++
++//get virtual adress to increase refrences
++//increase num of refrences for a page
++void
++kIncRef(char *v){
++  struct run *r;
++  
++  if(kmem.use_lock)
++    acquire(&kmem.lock);
++  r=&kmem.ref[V2P(v)/PGSIZE]; //r is the refrences for v page
++#if AVISHAIISCRAZY
++  if(r->refrences < 1)
++    r->refrences=1;
++#endif
++  r->refrences++;
++  if(kmem.use_lock)
++    release(&kmem.lock);
++  
++  if((1 &&  DEBUG)|| KDEBUG ) cprintf("kalloc.c: kIncRef: increased pa 0x%x, currnet ref number = %d\n",V2P(v),r->refrences);
++}
++
++//  get virtual address to decrese the ref count of the 
++//  physical address relate to it
++//  decrease num of refrences for a page
++//  if after decreasing, ref count = 0 than free the physical page
++void
++kDecRef(char *v){
++    struct run *r;
++
++  if(kmem.use_lock)
++    acquire(&kmem.lock);
++  r=&kmem.ref[V2P(v)/PGSIZE]; //r is the struct of the page
++  r->refrences--;
++  if(kmem.use_lock)
++    release(&kmem.lock);
++  if((1 &&  DEBUG)|| KDEBUG ) cprintf("kalloc.c: kDecRef: decreased pa 0x%x, currnet ref number = %d\n",V2P(v),r->refrences);
++  if(r->refrences <= 0){
++    if((1 &&  DEBUG)|| KDEBUG ) cprintf("kalloc.c: kDecRef: free pa 0x%x, currnet ref number = %d\n",V2P(v),r->refrences);
++    kfree(v);
++  }
++}
++
++//get virtual address to return how many refrences 
++//get refrences for a spesific page
++int
++kGetRef(char *v){
++  struct run *r;
++  r=&kmem.ref[V2P(v)/PGSIZE]; //r is the refrences for v page
++  return r->refrences;
++}
+diff --git a/memlayout.h b/memlayout.h
+index d1615f7..0558a97 100644
+--- a/memlayout.h
++++ b/memlayout.h
+@@ -3,6 +3,7 @@
+ #define EXTMEM  0x100000            // Start of extended memory
+ #define PHYSTOP 0xE000000           // Top physical memory
+ #define DEVSPACE 0xFE000000         // Other devices are at high addresses
++#define MAXPAGES (PHYSTOP/PGSIZE)   //how many pages we have
+ 
+ // Key addresses for address space layout (see kmap in vm.c for layout)
+ #define KERNBASE 0x80000000         // First kernel virtual address
+diff --git a/mmu.h b/mmu.h
+index a82d8e2..93559be 100644
+--- a/mmu.h
++++ b/mmu.h
+@@ -4,6 +4,11 @@
+ // Eflags register
+ #define FL_IF           0x00000200      // Interrupt Enable
+ 
++//Page faults
++#define FEC_PR		0x00000001	// Page fault caused by protection violation
++#define FEC_WR		0x00000002	// Page fault caused by a write
++#define FEC_U	  	0x00000004	// Page fault occured while in user mode
++
+ // Control Register flags
+ #define CR0_PE          0x00000001      // Protection Enable
+ #define CR0_WP          0x00010000      // Write Protect
+@@ -90,11 +95,20 @@ struct segdesc {
+ #define PGROUNDUP(sz)  (((sz)+PGSIZE-1) & ~(PGSIZE-1))
+ #define PGROUNDDOWN(a) (((a)) & ~(PGSIZE-1))
+ 
++
+ // Page table/directory entry flags.
+ #define PTE_P           0x001   // Present
+ #define PTE_W           0x002   // Writeable
+ #define PTE_U           0x004   // User
+ #define PTE_PS          0x080   // Page Size
++//NEW
++#define PTE_PWT         0x008   // Write-Through
++#define PTE_PCD         0x010   // Cache-Disable
++#define PTE_A           0x020   // Accessed     
++#define PTE_D           0x040   // Dirty
++#define PTE_MBZ         0x180   // Bits must be zero
++#define PTE_PG          0x200   // Paged out to secondary storage
++#define PTE_COW         0x800   // COW
+ 
+ // Address in page table or page directory entry
+ #define PTE_ADDR(pte)   ((uint)(pte) & ~0xFFF)
+diff --git a/proc.c b/proc.c
+index 806b1b1..aa98c22 100644
+--- a/proc.c
++++ b/proc.c
+@@ -20,6 +20,183 @@ extern void trapret(void);
+ 
+ static void wakeup1(void *chan);
+ 
++int
++getNumFreePages(void){
++  return currFreePages();
++}
++
++// gets a proc and print its 
++// memory pages queue from
++// HEAD->to->TAIL
++void
++printMemoryPagesQueue(struct proc* p){
++  int index = p->headOfMemoryPages;
++  cprintf("proc.c: printMemoryPagesQueue: p->pid %d: head index is %d\n",p->pid,index);
++  //check queue is empty
++  if(index == -1){
++    cprintf("proc.c: printMemoryPagesQueue: p->pid %d: QUEUE: empty\n",p->pid);
++    return;
++  }
++  //print the head of the queue
++  cprintf("proc.c:printMemoryPagesQueue:p->pid%d:HEAD: 0x%x",p->pid, p->memoryPages[index].va);
++  index = p->memoryPages[index].next;
++  //printing the queue
++  while(index > 0 && index < 16){
++    cprintf("->0x%x",p->memoryPages[index].va);
++    if( index == p->memoryPages[index].next)
++      panic("proc.c: printMemoryPagesQueue: link next point on itself");
++    index = p->memoryPages[index].next;
++  }
++  //printing page fault's and page out's
++  cprintf("page faults= %d, page outs= %d \n",p->numOfPagedFault, p->numOfPagedOut);
++  //ending the line
++  cprintf("\n");
++}
++
++//duplicate the mamoryPage array and the swapPage array of source proc to dest proc
++void
++duplicate_page_arrays(struct proc *source, struct proc *dest){
++  for (int i = 0; i < MAX_PSYC_PAGES; i++){
++      dest->swapPages[i].is_occupied=source->swapPages[i].is_occupied;
++      dest->swapPages[i].va=source->swapPages[i].va; 
++      dest->memoryPages[i].va=source->memoryPages[i].va;
++      dest->memoryPages[i].prev=source->memoryPages[i].prev;
++      dest->memoryPages[i].next=source->memoryPages[i].next;
++      dest->memoryPages[i].age=source->memoryPages[i].age;
++      dest->memoryPages[i].is_occupied=source->memoryPages[i].is_occupied;
++      if(i==MAX_PSYC_PAGES-1){
++        dest->swapPages[i+1].is_occupied=source->swapPages[i+1].is_occupied;
++        dest->swapPages[i+1].va=source->swapPages[i+1].va; 
++      }
++    }
++}
++
++//initialie the mamoryPage and swapPage arrays
++void 
++init_page_arrays(struct proc *p){
++  for (int i = 0; i < MAX_PSYC_PAGES; i++){
++      p->swapPages[i].is_occupied=0;
++      p->swapPages[i].va=-1;
++      p->memoryPages[i].va=-1;
++      p->memoryPages[i].prev=-1;
++      p->memoryPages[i].next=-1;
++      p->memoryPages[i].age=0;
++      p->memoryPages[i].is_occupied=0;
++      if(i==MAX_PSYC_PAGES-1){
++        p->swapPages[i+1].is_occupied=0;
++        p->swapPages[i+1].va=-1; 
++      }
++    }
++}
++
++//handle changes in proc data at each clock tick
++void
++handle_aging_counter(struct proc* p){
++  int nfuaOrLapa =0;
++  #ifdef NFUA
++    nfuaOrLapa=1;
++  #endif
++  #ifdef LAPA
++    nfuaOrLapa=1;
++  #endif
++  
++  if(nfuaOrLapa){
++    if(1 && DEBUG) cprintf("proc.c: handle_aging_counter:NFUA/LAPA: p->pid %d start aging\n",p->pid);
++
++    acquire(&ptable.lock);
++    for (int i = 0; i < MAX_PSYC_PAGES; i++){
++      //not accessd - shift right by 1 bit
++      if(p->memoryPages[i].is_occupied){
++        if(1 && DEBUG) cprintf("proc.c: handle_aging_counter:NFUA/LAPA: p->pid %d page 0x%x is in index %d \tage 0x%x\n",p->pid,p->memoryPages[i].va,i,p->memoryPages[i].age);   
++        p->memoryPages[i].age = p->memoryPages[i].age >> 1;   
++        //accessd - shift right by 1 bit & add 1 to msb
++        if(checkPTE_A(p,p->memoryPages[i].va)){
++          if(1 && DEBUG) cprintf("proc.c: handle_aging_counter:NFUA/LAPA: p->pid %d page 0x%x was accsessed\n",p->pid,p->memoryPages[i].va);
++          p->memoryPages[i].age |= 0x80000000; 
++        }
++      }
++    }
++    release(&ptable.lock);
++  }
++  
++  #ifdef AQ 
++    acquire(&ptable.lock);
++    //the queue starts tail-->head
++    //takes the tail
++
++    //debug
++    if(1 && DEBUG){
++      cprintf("proc.c: handle_aging_counter:AQ: p->pid %d start passing on the pages queue\n",p->pid);
++      printMemoryPagesQueue(p);
++    }
++    int index=p->headOfMemoryPages;
++    //if PTE_A=1 change places w- the next
++    while(index > 0 && index < 16){// when index= -1 we got to the tail
++      int index_prev=p->memoryPages[index].prev;
++      int index_next=p->memoryPages[index].next;
++      if(p->memoryPages[index].is_occupied){
++        if(checkPTE_A(p,p->memoryPages[index].va)){
++          
++          if(1 && DEBUG) cprintf("proc.c: handle_aging_counter:AQ: p->pid %d page 0x%x was accsessed\n",p->pid,p->memoryPages[index].va);
++          //as long as index isnt the tail, switching the link with its next
++          if(index!=p->tailOfMemoryPages){
++
++            // IF LINK is head
++            if(index == p->headOfMemoryPages){
++              //change my next and prev | update current link
++              p->memoryPages[index].prev=index_next;
++              p->memoryPages[index].next=p->memoryPages[index_next].next;
++              
++              // make next link head
++              p->memoryPages[index_next].prev=-1;
++              p->memoryPages[index_next].next=index;
++
++              p->headOfMemoryPages=index_next;
++
++            }
++            else{
++              // IF LINK is in the middle of the list
++              //change index.prev | connect the prev link to the next link
++              p->memoryPages[index_prev].next=index_next;
++              
++              //if not tail move the link 1 step forward to the tail
++              //change my next and prev | update current link
++              p->memoryPages[index].prev=index_next;
++              p->memoryPages[index].next=p->memoryPages[index_next].next;
++              
++              //change next.prev | connect the next next 
++              p->memoryPages[index_next].prev=index;
++
++              //change next's next and prev to be mine
++              p->memoryPages[index_next].prev=index_prev;
++              p->memoryPages[index_next].next=index;
++
++              //check if my index.next is tail
++              if(index_next==p->tailOfMemoryPages){
++                p->tailOfMemoryPages=index;
++              }
++            }
++            
++          }
++        }
++        
++      }
++      //advancing to the next link
++      index=index_next;
++    }
++    release(&ptable.lock);
++  #endif
++}
++// 1-->2-->3-->4
++// ref 2
++// 1->3->2->4
++// new 5 
++// 3->2->4->5
++// ref 3
++// 2->3->4->5
++// ref 4
++
++
+ void
+ pinit(void)
+ {
+@@ -52,6 +229,20 @@ mycpu(void)
+   panic("unknown apicid\n");
+ }
+ 
++// gets pointer to pgdir and
++// return pointer to the proc
++// which hold that pgdir.
++// return 0 on error.
++struct proc*
++procOfpgdir(pde_t *pgdir){
++  struct proc *p;
++  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
++    if(p->state != UNUSED && p->pgdir==pgdir)
++      return p;
++  }
++  return (struct proc*)0;
++}
++
+ // Disable interrupts so that we are not rescheduled
+ // while reading proc from the cpu structure
+ struct proc*
+@@ -90,6 +281,7 @@ found:
+   p->pid = nextpid++;
+ 
+   release(&ptable.lock);
++  if(1 && DEBUG) cprintf("proc.c: allocproc: PID %d start initializing proc  current pages in memory=%d\n",p->pid,p->pagesInMemory);
+ 
+   // Allocate kernel stack.
+   if((p->kstack = kalloc()) == 0){
+@@ -112,6 +304,31 @@ found:
+   memset(p->context, 0, sizeof *p->context);
+   p->context->eip = (uint)forkret;
+ 
++  #ifndef NONE
++    // Initialize all the paging structs
++    // initialze for every proc which is not 1 or 2
++    if(p->pid > 2){
++      // initializing swapFile
++      // upon failure free kstack and return 0
++      if(createSwapFile(p)!=0){
++        kfree(p->kstack);
++        return 0;
++      }
++      //initialize
++      init_page_arrays(p);
++
++      p->pagesInMemory=0;
++      p->pagesInSwap=0;
++      // we use -1 to know the queue is empty
++      p->headOfMemoryPages=-1;
++      p->tailOfMemoryPages=-1;
++      p->numOfPagedFault=0;
++      p->numOfPagedOut=0;
++
++      if(1 && DEBUG) cprintf("proc.c: allocproc: PID %d about to initialize p->pagesInMemory=0 ,  current pages in memory=%d\n",p->pid,p->pagesInMemory);
++    }
++  #endif
++
+   return p;
+ }
+ 
+@@ -166,6 +383,7 @@ growproc(int n)
+     if((sz = allocuvm(curproc->pgdir, sz, sz + n)) == 0)
+       return -1;
+   } else if(n < 0){
++    if(1 && DEBUG) cprintf("proc.c: growproc: PID %d about to deallocuvm ,  current pages in memory=%d\n",curproc->pid,curproc->pagesInMemory);
+     if((sz = deallocuvm(curproc->pgdir, sz, sz + n)) == 0)
+       return -1;
+   }
+@@ -186,16 +404,33 @@ fork(void)
+ 
+   // Allocate process.
+   if((np = allocproc()) == 0){
++    if(1 && DEBUG) cprintf("proc.c: fork: PID %d Failed to allocproc() new proc \n",curproc->pid);
+     return -1;
+   }
++  if(1 && DEBUG) cprintf("proc.c: fork: np->pid %d allocated process, pages in memory=%d\n",np->pid,np->pagesInMemory);
+ 
+   // Copy process state from proc.
+-  if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
+-    kfree(np->kstack);
+-    np->kstack = 0;
+-    np->state = UNUSED;
+-    return -1;
++  if(COW && curproc->pid>2){ //cow algorithm
++      if((np->pgdir = cowuvm(curproc->pgdir, curproc->sz)) == 0){
++        if(1 && DEBUG) cprintf("proc.c: fork: PID %d FAILED to copyuvm to np->pgdir, np->pid=%d \n",curproc->pid,np->pid);
++
++        kfree(np->kstack);
++        np->kstack = 0;
++        np->state = UNUSED;
++        return -1;
++      }
++  }else{
++    if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
++      if(1 && DEBUG) cprintf("proc.c: fork: PID %d FAILED to copyuvm to np->pgdir, np->pid=%d \n",curproc->pid,np->pid);
++
++      kfree(np->kstack);
++      np->kstack = 0;
++      np->state = UNUSED;
++      return -1;
++    }
+   }
++  
++  if(1 && DEBUG) cprintf("proc.c: fork: np->pid %d copyied process state from proc, pages in memory=%d\n",np->pid,np->pagesInMemory);
+   np->sz = curproc->sz;
+   np->parent = curproc;
+   *np->tf = *curproc->tf;
+@@ -211,7 +446,39 @@ fork(void)
+   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
+ 
+   pid = np->pid;
++  #ifndef NONE
++    if(1 && DEBUG) cprintf("proc.c: fork: np->pid %d before start of copy pages data, pages in memory=%d\n",np->pid,np->pagesInMemory);
++    // START OF copy pages data
++    np->pagesInMemory=curproc->pagesInMemory;
++    np->pagesInSwap=curproc->pagesInSwap;
++    np->headOfMemoryPages=curproc->headOfMemoryPages;
++    np->tailOfMemoryPages=curproc->tailOfMemoryPages;
++    np->numOfPagedOut=0;
++    np->numOfPagedFault=0;
++    //the swapFile of child is like the swapFile of parent
++      
++    if(1 && DEBUG) cprintf("proc.c: fork: PID %d np->pid = %d\n",curproc->pid,np->pid);
++
++    // copy the entire swapfile to the new proc
++    if(curproc->pid > 2){
++      char buffer[PGSIZE/2]=""; 
++      if(1 && DEBUG) cprintf("proc.c: fork: size of buffer in fork: %d\n", sizeof(buffer));
++      int numRead=0;
++      int placeOnFile=0;
++      while((numRead=readFromSwapFile(curproc,buffer,placeOnFile,sizeof(buffer)))){ //have something to read
++      if(np->pid>2){
++        if(writeToSwapFile(np,buffer,placeOnFile,numRead)==-1) 
++          return -1;
++        placeOnFile+=numRead;
++        } 
++      }
++      //duplicate the process
++      duplicate_page_arrays(curproc,np);
++    }
++  #endif
+ 
++  // END OF copy pages data
++  if(1 && DEBUG) cprintf("proc.c: fork: PID %d SUCCESSFULY created new proc np->pid =%d, np->pagesInMemory=%d\n",curproc->pid,np->pid,np->pagesInMemory);
+   acquire(&ptable.lock);
+ 
+   np->state = RUNNABLE;
+@@ -233,6 +500,15 @@ exit(void)
+ 
+   if(curproc == initproc)
+     panic("init exiting");
++  //closeing swapfile
++  #ifndef NONE  
++    if(!(curproc->pid==1||curproc->parent->pid==1)){//NOT shell or init
++      if(1 && DEBUG) cprintf("proc.c: exit: PID %d about to remove swapFile\n",curproc->pid);
++
++      if(curproc->pid > 2 && removeSwapFile(curproc)!=0)
++          panic("proc.c: exit: couldnt remove swapFile");
++    } 
++  #endif
+ 
+   // Close all open files.
+   for(fd = 0; fd < NOFILE; fd++){
+@@ -271,12 +547,12 @@ exit(void)
+ // Return -1 if this process has no children.
+ int
+ wait(void)
+-{
++{ 
+   struct proc *p;
+   int havekids, pid;
+   struct proc *curproc = myproc();
+   
+-  acquire(&ptable.lock);
++  acquire(&ptable.lock); 
+   for(;;){
+     // Scan through table looking for exited children.
+     havekids = 0;
+@@ -284,11 +560,13 @@ wait(void)
+       if(p->parent != curproc)
+         continue;
+       havekids = 1;
+-      if(p->state == ZOMBIE){
++      if(p->state == ZOMBIE){ 
+         // Found one.
+         pid = p->pid;
+         kfree(p->kstack);
+         p->kstack = 0;
++        if(1 && DEBUG) cprintf("proc.c: wait: PID %d about to enter freevm for p->pid= %d, p->pagesInMemory=%d\n",curproc->pid, p->pid,p->pagesInMemory);
++
+         freevm(p->pgdir);
+         p->pid = 0;
+         p->parent = 0;
+@@ -333,6 +611,8 @@ scheduler(void)
+     // Loop over process table looking for process to run.
+     acquire(&ptable.lock);
+     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
++
++
+       if(p->state != RUNNABLE)
+         continue;
+ 
+@@ -523,12 +803,21 @@ procdump(void)
+       state = states[p->state];
+     else
+       state = "???";
+-    cprintf("%d %s %s", p->pid, state, p->name);
++    #ifdef FALSE
++      cprintf("%d %s %s", p->pid, state, p->name);
++    #endif
++    #ifdef TRUE //new poutput line if VERBOSE_PRINT=TRUE
++      int totalPaged = p->pagesInMemory + p->pagesInSwap;
++      cprintf("%d %s %d %d %d %d %s ", p->pid, state, totalPaged, p->pagesInSwap, p->numOfPagedFault, p->numOfPagedOut, p->name);
++    #endif
+     if(p->state == SLEEPING){
+       getcallerpcs((uint*)p->context->ebp+2, pc);
+       for(i=0; i<10 && pc[i] != 0; i++)
+         cprintf(" %p", pc[i]);
+     }
+     cprintf("\n");
++    #ifdef TRUE
++      cprintf(" %d / %d  free page frames in the system /n", currFreePages(), totalFreePages()); 
++    #endif
+   }
+ }
+diff --git a/proc.h b/proc.h
+index f8d364e..d74e6a4 100644
+--- a/proc.h
++++ b/proc.h
+@@ -33,6 +33,26 @@ struct context {
+ };
+ 
+ enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
++//To know which pages are in the process' swap file and where they are located in that file
++struct memoryPages_e{ 
++  uint va;                       //virtual address [10][10][12= 0x0] va & 0x[F]FFFF000     [1111]
++  int prev;
++  int next;  
++  uint age; 
++  short  is_occupied;
++};
++
++struct swap_e{
++  char  is_occupied;
++  uint va;
++};
++
++// struct freePages{ 
++//   struct freePages *prev;
++//   struct freePages *next;
++//   uint va;
++
++// };
+ 
+ // Per-process state
+ struct proc {
+@@ -51,8 +71,24 @@ struct proc {
+   char name[16];               // Process name (debugging)
+   //Swap file. must initiate with create swap file
+   struct file *swapFile;      //page file
++
++  //NEW
++  int pagesInMemory;                      //pages in memmory
++  int pagesInSwap;                        //pages in swap
++  struct memoryPages_e memoryPages[MAX_PSYC_PAGES];  //pages in physical memory
++  struct swap_e swapPages[17];           //pages in swap file
++  int headOfMemoryPages;
++  int tailOfMemoryPages;
++  int numOfPagedOut;
++  int numOfPagedFault;
++
++
+ };
+ 
++
++
++
++
+ // Process memory is laid out contiguously, low addresses first:
+ //   text
+ //   original data and bss
+diff --git a/swapPages_e[] b/swapPages_e[]
+new file mode 100644
+index 0000000..e69de29
+diff --git a/syscall.c b/syscall.c
+index ee85261..cf3ce73 100644
+--- a/syscall.c
++++ b/syscall.c
+@@ -103,6 +103,7 @@ extern int sys_unlink(void);
+ extern int sys_wait(void);
+ extern int sys_write(void);
+ extern int sys_uptime(void);
++extern int sys_getNumFreePages(void);
+ 
+ static int (*syscalls[])(void) = {
+ [SYS_fork]    sys_fork,
+@@ -126,6 +127,7 @@ static int (*syscalls[])(void) = {
+ [SYS_link]    sys_link,
+ [SYS_mkdir]   sys_mkdir,
+ [SYS_close]   sys_close,
++[SYS_getNumFreePages] sys_getNumFreePages,
+ };
+ 
+ void
+diff --git a/syscall.h b/syscall.h
+index bc5f356..8f433cc 100644
+--- a/syscall.h
++++ b/syscall.h
+@@ -20,3 +20,4 @@
+ #define SYS_link   19
+ #define SYS_mkdir  20
+ #define SYS_close  21
++#define SYS_getNumFreePages 22
+diff --git a/sysproc.c b/sysproc.c
+index 0686d29..f2f08fe 100644
+--- a/sysproc.c
++++ b/sysproc.c
+@@ -7,6 +7,12 @@
+ #include "mmu.h"
+ #include "proc.h"
+ 
++int
++sys_getNumFreePages(void)
++{
++return getNumFreePages();
++}
++
+ int
+ sys_fork(void)
+ {
+diff --git a/testone.c b/testone.c
+new file mode 100644
+index 0000000..f82b43f
+--- /dev/null
++++ b/testone.c
+@@ -0,0 +1,73 @@
++#include "types.h"
++#include "stat.h"
++#include "user.h"
++
++
++void addPages(int pages){
++    int i;
++    printf(1,"testone.c:  start test: add %d pages\n",pages);
++    char* buf = sbrk(4096*pages);
++    printf(1,"testone.c:  addPages: created buf = sbrk(4096*pages), pages = %d\n",pages);
++    for(i=0; i<pages;i++){
++        printf(1,"testone.c: addPages: putting 'x' at address 0x%x\n",&buf[i*4096]);
++        buf[i*4096] = 'x';
++    }
++
++    for(i=0; i<pages;i++){
++        printf(1, " round 1 data at address 0x%x : %c\n",&buf[i*4096], buf[i*4096]);
++    }
++    
++    for(i=0; i<pages;i++){
++        printf(1, " round 2 data: %c\n",buf[i*4096]);
++    }
++
++}
++
++int
++main(){
++
++    // #if SELECTION == SCFIFO
++    //     printf(1,"testone.c: SELLECTION == SCFIFO\n");
++    // #endif
++
++    // #if SELECTION == LAPA
++    //     printf(1,"testone.c: SELECTION == LAPA\n");
++    // #endif
++
++    // #if SELECTION == NONE
++    //     printf(1,"testone.c: SELECTION == NONE\n");
++    // #endif
++
++    // #ifndef SELECTION
++    //     printf(1,"testone.c: #ifndef SELECTION\n");
++    // #endif
++
++    #ifndef NONE
++        printf(1,"testone.c: #ifndef NONE\n");
++    #endif
++
++    #ifdef SCFIFO
++        printf(1,"testone.c: #ifdef SCFIFO\n");
++    #endif
++
++    #ifdef LAPA
++        printf(1,"testone.c: #ifdef LAPA\n");
++    #endif
++
++    #ifdef AQ
++        printf(1,"testone.c: #ifdef AQ\n");
++    #endif
++
++    #ifdef NONE
++        printf(1,"testone.c: #ifdef NONE\n");
++    #endif
++
++    
++    printf(1,"testone.c: strating memory pages test...\n");
++    
++    addPages(29);
++    // addPages(4);
++    printf(1,"#########################\n@@@@@@@@@@@@@@@@@@@@@\nSUCCESSFULY FINISHED TESTONE!!!!!!!!!!!!!!!!!!!!!!!!!\n@@@@@@@@@@@@@@@@@@@@@\n########################\n");
++    exit();
++    return 0;
++}
+\ No newline at end of file
+diff --git a/trap.c b/trap.c
+index 41c66eb..7979777 100644
+--- a/trap.c
++++ b/trap.c
+@@ -36,6 +36,13 @@ idtinit(void)
+ void
+ trap(struct trapframe *tf)
+ {
++  int defineNONE = 0;
++  #ifdef NONE
++    defineNONE=1;
++  #endif
++
++  uint address;
++  pte_t *pte;
+   if(tf->trapno == T_SYSCALL){
+     if(myproc()->killed)
+       exit();
+@@ -49,6 +56,13 @@ trap(struct trapframe *tf)
+   switch(tf->trapno){
+   case T_IRQ0 + IRQ_TIMER:
+     if(cpuid() == 0){
++       #ifndef NONE
++        //andle the aging macanisem in NONE is not defined.
++        if( isValidUserProc(myproc()) ){
++          if(1 && DEBUG) cprintf("\ntrap.c: trap: PID %d NONE is NOT defined, about to handle_aging_counter\n",myproc()->pid);
++          handle_aging_counter(myproc()); 
++        }
++      #endif
+       acquire(&tickslock);
+       ticks++;
+       wakeup(&ticks);
+@@ -77,6 +91,54 @@ trap(struct trapframe *tf)
+             cpuid(), tf->cs, tf->eip);
+     lapiceoi();
+     break;
++  // handleing page fault
++  
++  case T_PGFLT:
++    // #ifndef NONE
++    //     //andle the aging macanisem in NONE is not defined.
++    //     if( isValidUserProc(myproc()) ){
++    //       if(1 && DEBUG) cprintf("\ntrap.c: trap: PID %d NONE is NOT defined, about to handle_aging_counter\n",myproc()->pid);
++    //       handle_aging_counter(myproc()); 
++    //     }
++    // #endif
++    myproc()->numOfPagedFault++;
++    
++    address = rcr2();
++    if(1 && DEBUG && myproc() != 0) cprintf("trap.c: trap: PID %d: T_PGFLT on address 0x%x\n ",myproc()->pid,address);
++    //1) in swap file - need to swap back to pysical memory
++    //2) not it pgdir - need to create
++    //3) RO - first p try to write -> make writeable copy
++    //        second p try to write -> make W and try writung again
++    pte = (pte_t*)getPTE(myproc()->pgdir,(void*)address);
++    if (*pte & PTE_P){
++      //if /*cow is active*/ /*page isnt writable*/ /*page can be accessed by user*/
++      if(COW && !(*pte & PTE_W) && (*pte & PTE_U) && (*pte & PTE_COW)){
++        
++        //COW
++        //if page is present and not writable
++        // if(!(PTE_W & PTE_FLAGS(pte[PTX(address)]))){
++          cprintf("trap.c: about to enter handle_COW_write_fault\n");
++          myproc()->tf = tf;
++          handle_COW_write_fault(myproc(),address); 
++          if(myproc()->killed)
++            exit();
++          break;
++        // }
++      }
++    }else if(!defineNONE && (*pte & PTE_PG) /*& !(*pte & PTE_P)*/){
++      if(1 && DEBUG && myproc() != 0) cprintf("trap.c: trap: PID %d: pagefault, page is in swap on address 0x%x\n ",myproc()->pid, address);
++      loadPageToMemory(address);
++      break;
++    }
++      //we dont break this case
++      // so if T_PGFAULT isnt becaus the page is in swap, than the algorithem behave normally
++      //if we've reached here we are about to get trap
++      if(myproc()!=0) cprintf("PID %d: ",myproc()->pid);
++      cprintf("trap.c: trap: T_PGFLT we couldnt cach, address 0x%x *pte=0x%x\n",address,*pte);
++      panic("panicccc");
++    
++    
++
+ 
+   //PAGEBREAK: 13
+   default:
+diff --git a/types.h b/types.h
+index e4adf64..46e3868 100644
+--- a/types.h
++++ b/types.h
+@@ -2,3 +2,26 @@ typedef unsigned int   uint;
+ typedef unsigned short ushort;
+ typedef unsigned char  uchar;
+ typedef uint pde_t;
++
++
++//NEW
++#define MAX_TOTAL_PAGES 32
++#define MAX_PSYC_PAGES 16   // pages in the physical memory
++#define MAX_SWAP_PAGES 17   // pages in the physical memory
++#define AL_PAGES 32  // pages of process
++#define OCCUPIED 1
++#define UNOCCUPIED 0
++#define COW 1//cow
++#define DEBUG 0
++#define KDEBUG 0
++
++
++
++
++// #define SCFIFO 0
++// #define NFUA 1
++// #define LAPA 2
++// #define AQ 3
++// #define NONE 4
++
++
+diff --git a/user.h b/user.h
+index 4f99c52..872ba0a 100644
+--- a/user.h
++++ b/user.h
+@@ -23,6 +23,7 @@ int getpid(void);
+ char* sbrk(int);
+ int sleep(int);
+ int uptime(void);
++int getNumFreePages(void);
+ 
+ // ulib.c
+ int stat(const char*, struct stat*);
+diff --git a/usys.S b/usys.S
+index 8bfd8a1..c283731 100644
+--- a/usys.S
++++ b/usys.S
+@@ -29,3 +29,4 @@ SYSCALL(getpid)
+ SYSCALL(sbrk)
+ SYSCALL(sleep)
+ SYSCALL(uptime)
++SYSCALL(getNumFreePages)
+diff --git a/vm.c b/vm.c
+index 7134cff..c5d9ec7 100644
+--- a/vm.c
++++ b/vm.c
+@@ -6,9 +6,664 @@
+ #include "mmu.h"
+ #include "proc.h"
+ #include "elf.h"
++#include "limits.h"
+ 
+ extern char data[];  // defined by kernel.ld
+ pde_t *kpgdir;  // for use in scheduler()
++static pte_t * walkpgdir(pde_t *pgdir, const void *va, int alloc);
++
++
++// get a virtual address
++// return the pte addres or 0
++uint
++getPTE(pde_t *pgdir, const void *va){
++  return (uint)walkpgdir(pgdir,va,0);
++}
++
++void
++printPagesInSwap(struct proc* p){
++  int i;
++  cprintf("\nvm.c: printPagesInSwap: PID %d SWAP pages list:\n",p->pid);
++  for(i=0;i<MAX_SWAP_PAGES;i++){
++    cprintf("vm.c: printPagesInSwap: index: %d, is_occupied: %d, va: 0x%x \n",
++        i, p->swapPages[i].is_occupied, p->swapPages[i].va);
++  }
++}
++
++//print to terminal the entire p->memoryPages entries
++// used for debugging
++void
++pritntProcMemoryPages(struct proc* p){
++  int i;
++  cprintf("\nvm.c: pritntProcMemoryPages: PID %d memory pages list:\n",p->pid);
++  for(i=0;i<MAX_PSYC_PAGES;i++){
++    cprintf("vm.c: pritntProcMemoryPages: index: %d, is_occupied: %d, va: 0x%x, age: %d, next: %d, prev: %d  \n",
++        i, p->memoryPages[i].is_occupied, p->memoryPages[i].va, p->memoryPages[i].age, p->memoryPages[i].next, p->memoryPages[i].prev);
++  }
++}
++
++// checks the refrence bit,
++// clear it anyway and return the ref bit value
++int checkPTE_A(struct proc* p,uint va){
++  uint accessed;
++  pte_t *pte = walkpgdir(p->pgdir, (void*)va, 0);
++  if (!(*pte))
++    return -1;
++  accessed = (*pte) & PTE_A; //0x020
++  (*pte) &= ~PTE_A;
++  return accessed;
++}
++
++
++//SELECTION=NFUA
++//The page with the lowest counter should be removed
++int select_nfua_swap(struct proc* p){
++  uint lowest_counterP=__UINT32_MAX__; //lowest age 
++  int page_index=-1;
++
++  //find the page with the lowest counter
++  for (int i = 0; i < MAX_PSYC_PAGES; i++){
++    if(1 && DEBUG) cprintf("vm.c: select_nfua_swap: p->pid %d index %d, va 0x%x \tage 0x%x\n",p->pid, i, p->memoryPages[i].va, p->memoryPages[i].age);
++      if(p->memoryPages[i].age < lowest_counterP){
++        lowest_counterP=p->memoryPages[i].age;
++        page_index=i;
++      }
++  }
++  if(page_index < 0 ) cprintf("vm.c: select_nfua_swap: p->pid %d: invalid index %d\n",p->pid, page_index);
++  else if(1 && DEBUG) cprintf("vm.c: select_nfua_swap: p->pid %d: selected page 0x%x in index %d\n",p->pid, p->memoryPages[page_index].va, page_index);
++  return page_index;
++}
++
++//SELECTION=LAPA
++//the page with the smallest number of "1"s will be removed. 
++//If there are several such pages, the one with the lowest counter value should be removed.
++int select_lapa_swap(struct proc* p){
++  int num_of_ones=__INT_MAX__;
++  int lowest_counterP=__INT_MAX__; //lowest age 
++  int page_index=-1;
++  uint a=0;
++
++  //find the page w- lowest num of 1& if there are few, find the lowest age.
++  for (int i = 0; i < MAX_PSYC_PAGES; i++){
++    if(p->memoryPages[i].is_occupied){
++      if(1 && DEBUG) cprintf("vm.c: select_lapa_swap: p->pid %d index %d, va 0x%x \tage 0x%x\n",p->pid, i, p->memoryPages[i].va, p->memoryPages[i].age);
++      a = p->memoryPages[i].age;
++      int num=0;
++      while (a){ //count num of 1
++        num += a & 1;
++        a = a >> 1;
++      }
++      if(num<num_of_ones){
++        num_of_ones=num;
++        lowest_counterP=p->memoryPages[i].age;
++        page_index=i;    
++      }
++      else if(num==num_of_ones){ 
++        //find the one with smallest age
++        if(p->memoryPages[i].age<lowest_counterP){
++          page_index=i;
++          lowest_counterP=p->memoryPages[i].age;
++        }
++      }
++    }
++  }
++  if(1 && DEBUG) cprintf("vm.c: select_lapa_swap: p->pid %d: selected page 0x%x in index %d\n",p->pid, p->memoryPages[page_index].va, page_index);
++  return page_index;
++}
++
++//SELECTION=SCFIFO
++// find a page to swap out and return it's index in p->memoryPages[]
++int select_scfifo_swap(struct proc* p){
++  int found=0;
++  int i=p->headOfMemoryPages;
++
++  //find first one with PTE_A=0
++  while (!found)
++  {
++   if(checkPTE_A(p, p->memoryPages[i].va)==0){
++      return i;
++   }
++   // if didnt reach the end of the list
++   else if(p->memoryPages[i].next != -1){
++     i=p->memoryPages[i].next;
++   }
++   // if reached the end of the list
++   else{
++      if(DEBUG) cprintf("vm.c: select_scfifo_swap: PID %d, couldnt find page to swap in the memoryPages list, start over from head of the list\n",p->pid);
++      i=p->headOfMemoryPages;
++   }
++  }
++  return -1;
++}
++
++//SELECTION==AQ
++//select the last inserted page in the memoryPages array
++int select_aq_swap(struct proc* p){
++  int i=p->headOfMemoryPages;
++  if(i < 0)
++    panic("vm.c: select_aq_swap: head index is < 0");
++  return i;
++}
++
++// select a page from p->memoryPages[]
++// and return its index.
++// return -1 upon error
++int
++selectPageToSwap(struct proc* p){
++  #ifdef NFUA
++    if(1 && DEBUG) cprintf("vm: selectPageToSwap: PID %d: select page by NFUA policy \n",p->pid);
++    return select_nfua_swap(p);
++  #endif
++
++  #ifdef LAPA
++    if(1 && DEBUG) cprintf("vm: selectPageToSwap: PID %d: select page by LAPA policy \n",p->pid);
++    return select_lapa_swap(p);
++  #endif
++
++  #ifdef SCFIFO
++    if(1 && DEBUG) cprintf("vm: selectPageToSwap: PID %d: select page by SCFIFO policy \n",p->pid);
++    return select_scfifo_swap(p);
++  #endif
++
++  #ifdef AQ
++    if(1 && DEBUG) cprintf("vm: selectPageToSwap: PID %d: select page by AQ policy \n",p->pid);
++    return select_aq_swap(p);
++  #endif
++  return -1;
++}
++
++// gets a proc p and an virtual addres of page. 
++// Findes the va index in p->memoryPages
++// and remove it from the list
++// and decrese pagesInMemory ccounter
++int
++removePageFromMemory(struct proc* p,uint va){
++  int index =-1;
++  int i=0;
++  uint pageVA = va & ~0xFFF;
++  if( 0 ) cprintf("vm.c: removePageFromMemory:va = 0x%x pageVA =0x%x\n",va,pageVA);
++
++  //find the index of va in p->memoryPages
++  for(; i<MAX_PSYC_PAGES && index < 0 ;i++){
++    if(p->memoryPages[i].is_occupied == 1 && p->memoryPages[i].va == pageVA){
++      index = i;
++    }
++  }
++  if(index < 0){
++    cprintf("vm.c: removePageFromMemory: PID %d: couldnt find va 0x%x in p->memoryPages\n",p->pid,pageVA);
++    pritntProcMemoryPages(p);
++    return -1;
++  }
++  // if index is the only node in the list
++  if(p->headOfMemoryPages == index && p->tailOfMemoryPages == index){
++    p->headOfMemoryPages = -1;
++    p->tailOfMemoryPages = -1;
++  }
++  // if the index is the head of the list (and not the only node in the list)
++  else if(p->headOfMemoryPages == index){
++    p->headOfMemoryPages = p->memoryPages[index].next;
++    p->memoryPages[p->headOfMemoryPages].prev = -1;
++  }
++  // if the index is the the last on the list (and not the only node in the list)
++  else if(p->tailOfMemoryPages == index){
++    p->tailOfMemoryPages = p->memoryPages[index].prev;
++    p->memoryPages[p->tailOfMemoryPages].next = -1;
++  }
++  // if the index is in the middle of the list
++  else{
++    int prev = p->memoryPages[index].prev;
++    int next = p->memoryPages[index].next;
++    p->memoryPages[prev].next=next;
++    p->memoryPages[next].prev=prev;
++  }
++
++  //clear the p->memoryPage entry
++  p->memoryPages[index].next = -1;
++  p->memoryPages[index].prev = -1;
++  p->memoryPages[index].va = -1;
++  p->memoryPages[index].age = 0;
++  p->memoryPages[index].is_occupied = 0;
++
++  p->pagesInMemory --;
++  if(1 && DEBUG) cprintf("vm.c: removePageFromMemory: PID %d removed page(0x%x) from memory,p->memoryPages[index].is_occupied =%d, pages in memory=%d\n",p->pid,va,p->memoryPages[index].is_occupied,p->pagesInMemory);
++
++
++  return 0;
++}
++
++// gets process and a virtual address of page with valid
++// pysic address, find empty slot in and p->memoryPages[], 
++// and push it to p->memoryPages
++// and increase p->pagesInMemory counter
++// Return -1 if error eccured
++int 
++pushToMemoryPagesArray(struct proc* p, uint va){
++  int index =-1;
++  int i=0;
++  if(1 && DEBUG) cprintf("vm.c: pushToMemoryPagesArray: enter with p->pid %d, p->pagesInMemory = %d \n",p->pid,p->pagesInMemory);
++  // find empty slot in
++  for(; i < MAX_PSYC_PAGES && index < 0 ; i++){
++    if(1 && DEBUG) cprintf("vm.c: pushToMemoryPagesArray: p->pid %d index %d va=0x%x is occupied=%d \n",p->pid ,i, p->memoryPages[i].va, p->memoryPages[i].is_occupied);
++
++    //check if the slot va is already addressing a page
++    if(p->memoryPages[i].is_occupied == 0){
++      index = i;
++      // p->memoryPages[index].is_occupied =1;
++    }
++  }
++  if(index < 0){
++    cprintf("vm.c: pushToMemoryPagesArray: couldnt find empty slot in the memoryPages Array\n");
++    return -1;
++  }
++
++  //pushing the page to the end of the list
++
++  p->memoryPages[index].prev = p->tailOfMemoryPages; // if the queue was empty than  p->tailOfMemoryPages = -1 and its fine.
++  p->memoryPages[index].next = -1;
++
++  //if queue was empty
++  if(p->headOfMemoryPages == -1){
++    //setting the head index
++    p->headOfMemoryPages= index;
++  }
++  //if queue wasnt empty
++  else{
++    //last tail is pointing to new tail
++    p->memoryPages[p->tailOfMemoryPages].next = index;
++  }
++
++  //setting the tail index
++  p->tailOfMemoryPages=index;
++
++
++  // updating the page virtual address
++  p->memoryPages[index].va = va;
++  // updating the page age
++  #ifdef NFUA
++  //for NFUA policy age =0 is ok
++  p->memoryPages[index].age = 0; 
++  #endif
++  #ifdef LAPA
++      //only LAPA policy needs to reset age to 0xFFFFFFFF
++      p->memoryPages[index].age = __UINT32_MAX__;
++  #endif
++
++  p->memoryPages[index].is_occupied =1;
++  p->pagesInMemory++;
++  
++  return 0;
++}
++
++//gets p and index in its p->pagesInSwap[] 
++// and remove the data from the array
++void
++removeFromPagesInSwap(struct proc* p, int index){
++  p->swapPages[index].va=-1;
++  p->swapPages[index].is_occupied = 0;
++  p->pagesInSwap--;
++}
++
++// gets index in p->swapPages
++// Delete the page content in the swapfile,
++// clear p->swapPages[index], 
++// and decrease the pagesInSwap counter
++void
++deleteFromSwap(struct proc* p, int index){
++  char buffer[]={0,0,0,0};
++  char *bufPtr=buffer;
++  int a=0;
++  // the p->swapPages is organized by the order of the pages in the swapfile
++  int pageOffsetInSwapFile = index*PGSIZE;
++
++  // write 4 chars of zero at a time
++  if(1 && DEBUG) cprintf("vm.c: deleteFromSwap: PID %d about to initialize page %d in swapFile by writing 0s\n",p->pid,index);
++  for(; a < PGSIZE ; a+=4){
++    if(writeToSwapFile(p,bufPtr, pageOffsetInSwapFile + a,4) < 0){
++      cprintf("vm.c: deleteFromSwap: failed to initilize the 4 byte at offset %d in page %d in swapFile\n",a,index);
++    }
++  }
++  if(1 && DEBUG) cprintf("vm.c: deleteFromSwap: PID %d finished to initialize page %d in swapFile by writing 0s\n",p->pid,index);
++  // clearing p->swapPages[index]
++  removeFromPagesInSwap(p,index);
++}
++
++// return the index of the page related with va 
++// in p->swapPages
++// Return -1 upon failuer.
++// va doesnt have to be paged aligned
++int
++findInSwap(struct proc* p,uint va){
++  int index = -1;
++  int i = 0;
++  uint pageVA = va & ~0xFFF;// the va to the first byte in the page
++
++  for( ; i < MAX_SWAP_PAGES && index < 0 ; i++){
++    if(p->swapPages[i].is_occupied && p->swapPages[i].va == pageVA)
++      index = i;
++  }
++  
++  return index;
++}
++
++// checks if p is valid user process for the paging system
++// returns 0 if (p == 0 || p->pid <= 2 ) and 1 if p->pid > 2
++int
++isValidUserProc(struct proc*p){
++  if( p == 0 /*kernal*/ || p->pid <= 2 /*shell & int procs*/)
++    return 0;
++  else return 1;
++}
++
++
++
++// find empty slot in the swapped pages array and Return it's index
++int
++findEmptyPageInSwap(struct proc *p){
++  int i=0;
++  int index = -1;
++
++  // find unoccupied slot in swapPages
++  for( ; i < MAX_SWAP_PAGES && index < 0 ; i++){
++    if(p->swapPages[i].is_occupied == 0){
++      index = i;
++      p->swapPages[i].is_occupied = 1;
++    }
++  }
++  return index;
++}
++
++// swap 1 page to swapfile.
++// if failed return -1
++// the page to swap is selected by the SELECT
++// swap algorithem.
++int
++swapOut(struct proc* p){
++  //only valid process calls swapOut() so p is valid
++  if(1 && DEBUG) cprintf("vm.c: swapOut: enter swapOut for p->pid %d\n",p->pid);
++
++  int indexInMemoryPages,indexInSwapPages;
++  pte_t *pte;
++
++  //check if swap is not full
++  if(!(p->pagesInSwap < MAX_SWAP_PAGES)){
++    cprintf("vm.c: swapOut: PID %d: pages in swap >= 17, p->pagesInSwap = %d\n",p->pid,p->pagesInSwap);
++    printPagesInSwap(p);
++    pritntProcMemoryPages(p);
++    panic("vm.c: swapOut: pages in swap >= 17");
++    return -1;
++  }
++  //select page to swap out
++  indexInMemoryPages=selectPageToSwap(p);
++  if(indexInMemoryPages < 0){
++    cprintf("vm.c: swapOut: PID %d: invalid indexInMemoryPages = %d\n",p->pid,indexInMemoryPages);
++    return -1;
++  }
++
++  if(1 && DEBUG) cprintf("vm.c: swapOut: PID %d: chose page in index %d to swap out\n",p->pid,indexInMemoryPages);
++  //find empty slot in swap
++  indexInSwapPages=findEmptyPageInSwap(p);
++  if(indexInSwapPages < 0){
++    cprintf("vm.c: swapOut: PID %d: invalid indexInSwapPages = %d\n",p->pid,indexInSwapPages);
++    printPagesInSwap(p);
++    pritntProcMemoryPages(p);
++    return -1;
++  }
++
++  // copy page data to swapFile  
++  if(1 && DEBUG) cprintf("vm.c: swapOut: PID %d about copy page 0x%x to swapFile at index %d\n",p->pid,p->memoryPages[indexInMemoryPages].va, indexInSwapPages);
++  if(writeToSwapFile(p, (char*)p->memoryPages[indexInMemoryPages].va, indexInSwapPages*PGSIZE, PGSIZE) != PGSIZE){
++    cprintf("vm.c: swapOut: PID %d: faild to write PGSIZE bytes of page 0x%x to swapFile\n",p->pid,p->memoryPages[indexInMemoryPages].va);
++    panic("vm.c: swapOut: faild to write to swapFile");
++    return -1;
++  }
++  if(1 && DEBUG) cprintf("vm.c: swapOut: PID %d finished copy page 0x%x to swapFile at index %d\n",p->pid,p->memoryPages[indexInMemoryPages].va, indexInSwapPages);
++  
++  //update pte flags
++  pte=walkpgdir(p->pgdir, (void*)p->memoryPages[indexInMemoryPages].va, 0);
++  if(pte == 0){
++    cprintf("vm.c: swapOut: PID %d: invalid indexInSwapPages = %d\n",p->pid,indexInSwapPages);
++    return -1;  
++  }
++  // set page data in p->swapPages
++  p->swapPages[indexInSwapPages].is_occupied = 1;
++  p->swapPages[indexInSwapPages].va = p->memoryPages[indexInMemoryPages].va;
++  p->pagesInSwap++;
++  p->numOfPagedOut++;
++
++  // Turinig on the PGfault flag
++  *pte |= PTE_PG;
++  // Clearing the PTE_P flag
++  *pte &= ~PTE_P;
++  // Clearing the PTE_A flag
++  *pte &= ~PTE_A;
++  if(COW){
++    //seting W bit
++    *pte |= PTE_W;
++    //clearing the COW flag
++    *pte &= ~PTE_COW; //TODO:
++  }
++  
++  //free the page on the pysic space
++  if(COW)
++    kDecRef(P2V(PTE_ADDR(*pte)));
++  else
++    kfree(P2V(PTE_ADDR(*pte)));
++
++  //refresh RC3 (TLB)
++  lcr3(V2P(p->pgdir));
++  //remove from p->memoryPages[]
++  if(1 && DEBUG) cprintf("vm.c: swapOut: PID %d: removing page in index %d from p->memoryPages\n",p->pid,indexInMemoryPages);
++  if(removePageFromMemory(p,p->memoryPages[indexInMemoryPages].va) < 0){
++    cprintf("vm.c: swapOut: p->pid %d FAILED to removed page in index %d from memory \n",p->pid,indexInMemoryPages);
++    return -1;
++  }
++  if(1 && DEBUG) cprintf("vm.c: swapOut: p->pid %d removed page in index %d from memory \n",p->pid,indexInMemoryPages);
++  
++  return 0;
++}
++
++// called from trap.c
++// gets a virtual address to 
++// load to pysic memory from swapFile.
++// if there are already 16 page in memory, swapping 1 page out 
++// Return 0 on success, -1 on error
++int
++loadPageToMemory(uint address){
++  struct proc* p= myproc();
++  uint page_va=address & ~0xFFF; //point to the begining of the page va
++  pte_t *pte;
++
++  char *mem;
++  int indexInSwap;
++
++   if(1 && DEBUG && p!=0) cprintf("vm.c: loadPageToMemory: PID %d: enter loadPageToMemory of page 0x%x for va 0x%x ",p->pid,page_va,address);
++
++  //check if need to swap out
++  if(p->pagesInMemory == MAX_PSYC_PAGES){
++    if(swapOut(p) < 0){
++      cprintf("vm.c: loadPageToMemory: PID %d: failed to swap out page,  = %d",p->pid,p->pagesInMemory);
++      panic("swapOut FAILED");
++      return -1;  
++    }
++  }
++  else if(p->pagesInMemory >MAX_PSYC_PAGES ){
++    panic("vm.c: loadPageToMemory: PID %d : p->pagesInMemory > MAX_PSYC_PAGES");
++  }
++  // load page: get the page index is p->swapPages[]
++  indexInSwap=findInSwap(p,page_va);
++  if(indexInSwap < 0){
++    cprintf("vm.c: loadPageToMemory: PID %d: failed to find address (0x%x) in swapPages",p->pid,page_va);
++    printPagesInSwap(p);
++    return -1;
++  }
++  //alocating page in pysic memory
++  if(COW) 
++    mem = kallocWithRef();
++  else
++    mem = kalloc();
++    
++  if(mem == 0){
++    cprintf("vm.c: loadPageToMemory: PID %d:  failed to allocate pysic memory\n",p->pid);
++    return -1;
++  }
++  // reseting the page
++  memset(mem, 0, PGSIZE);
++  // copy data from swap to pysc memory
++
++  // copy from swap to buffer
++    if(readFromSwapFile(p, mem, indexInSwap*PGSIZE , PGSIZE)  != PGSIZE){
++      cprintf("vm.c: loadPageToMemory: PID %d:  failed to copy from swapfile to buffer\n",p->pid);
++      if(COW)
++        kDecRef(mem);
++      else
++        kfree(mem);
++      return -1;
++    }
++
++  
++  //update pte
++  pte=(pte_t*)walkpgdir(p->pgdir,(void*)address,0);
++  if(pte == 0){
++    cprintf("vm.c: loadPageToMemory: PID %d:  couldnt find the address pte\n",p->pid);
++    if(COW)
++      kDecRef(mem);
++    else
++      kfree(mem);
++    return -1;
++  }
++  //put pysc address in pte with pte current plags and set PTE_P
++  *pte = V2P(mem) /*pa*/ | (*pte & 0xFFF) /*current flags*/ | PTE_P | PTE_A;
++  //clear PTE_PG
++  *pte &= ~PTE_PG;
++
++  //push page to p->memoryPages[]
++  if(1 && DEBUG) cprintf("vm.c: loadPageToMemory: PID %d:  about to pushToMemoryPagesArray va =0x%x\n",p->pid,page_va);
++  if(pushToMemoryPagesArray(p,page_va) < 0){
++    cprintf("vm.c: loadPageToMemory: PID %d:  failed to push page to p->memoryPages[]\n",p->pid);
++    if(COW)
++      kDecRef(mem);
++    else
++      kfree(mem);
++    return -1;
++  }
++  if(1 && DEBUG) cprintf("vm.c: loadPageToMemory: PID %d:  SUCCESSFULY pushToMemoryPagesArray va =0x%x\n",p->pid,page_va);
++  //if successfuly brought the page frome swap to memory,
++  // clear the entry in p->swapPages
++  if(1 && DEBUG) cprintf("vm.c: loadPageToMemory: PID %d: about removeFromPagesInSwap index %d va =0x%x\n",p->pid, indexInSwap, p->swapPages[indexInSwap].va);
++  removeFromPagesInSwap(p,indexInSwap);
++  if(1 && DEBUG) cprintf("vm.c: loadPageToMemory: PID %d: SUCCESSFULY removed removeFromPagesInSwap index %d \n",p->pid, indexInSwap);
++  if(1 && DEBUG) cprintf("vm.c: loadPageToMemory: PID %d: SUCCESSFULY loadPageToMemory pageVA 0x%x , exit the func with 0\n",p->pid, page_va);
++  return 0;
++}
++
++//gets a uint of the faulting page
++void
++handle_write_fault(uint va){
++  pte_t *pte; //entry in page table of the faulting page
++  uint pa;    //physical addres of faulting page
++  uint pan;   //physihandle_page_faultcal addres of new page
++  //AVISHAI// uint va = rcr2(); //faulting virtual address 
++  char *v;  //begining of virtual addres of faulting page
++  uint flags;
++  char *mem; // will be the adress of our new page if neseccery
++
++  char *a = (char*)PGROUNDDOWN((uint)va); //start of the faulty page
++  //if in kernal - kill
++  if(va >= KERNBASE || (pte = walkpgdir(myproc()->pgdir, a, 0)) == 0){
++    myproc()->killed = 1;
++    panic("vm.c: handle_write_fault: kernal page");
++    return;
++  }
++  //writable page fault
++  if(FEC_WR){ 
++    //if not dealing with COW - dont care
++    if(!(*pte & PTE_COW)){ 
++      myproc()->killed = 1;
++      panic("vm.c: handle_write_fault: not COW");
++      return;
++    }
++    else{ 
++      //if dealing with COW
++      pa = PTE_ADDR(*pte); 
++      v = P2V(pa);
++      flags = PTE_FLAGS(*pte);
++      //check how many refeerance exisit to the page
++      int refrences =kGetRef(v);
++      //not just me
++      if(refrences>1){ 
++        //make a copy for myself
++        mem = kalloc(); //new page
++        memmove(mem, v, PGSIZE);
++        pan=V2P(mem); 
++        *pte = pan | flags | PTE_P | PTE_W; //writable 
++        lcr3(V2P(myproc()->pgdir)); 
++        // decresing the referance counter for v
++        kDecRef(v);
++      }
++      //only I have refrence to this page - make it writable
++      else{
++        *pte |= PTE_W; //writable
++        *pte &= ~PTE_COW;
++        lcr3(V2P(myproc()->pgdir)); 
++      }
++    }
++  }
++  //not writable page fault - dont care
++  else{ 
++      return;
++    }
++
++}
++
++void
++handle_COW_write_fault(struct proc *p, uint va){
++  cprintf("vm.c: handle_COW_write_fault: PID %d: entered function with va 0x%x\n",p->pid,va);
++  pte_t *pte; //entry in page table of the faulting page
++  uint pa;    //physical addres of faulting page
++  uint pan;   //physical addres of new page
++  char *v;  //begining of virtual addres of faulting page
++  uint flags;
++  char *mem; // will be the adress of our new page if neseccery
++
++  char *a = (char*)PGROUNDDOWN((uint)va); //start of the faulty page
++  //if in kernal - kill
++  if(va >= KERNBASE || (pte = walkpgdir(p->pgdir, a, 0)) == 0){
++    p->killed = 1;
++    panic("vm.c: handle_write_fault: kernal page");
++    return;
++  }
++  
++  //if dealing with COW
++  pa = PTE_ADDR(*pte); 
++  v = P2V(pa);
++  flags = PTE_FLAGS(*pte);
++  //check how many refeerance exisit to the page
++  int refrences =kGetRef(v);
++  //not just me
++  if(refrences > 1){ 
++    //make a copy for myself
++    mem = kallocWithRef(); //new page
++    memmove(mem, v, PGSIZE);
++    pan=V2P(mem); 
++    *pte = pan | flags | PTE_P | PTE_W; //writable 
++    *pte &= ~PTE_COW; 
++    lcr3(V2P(p->pgdir)); 
++    // decresing the referance counter for v
++    kDecRef(v);
++  }
++  //only I have refrence to this page - make it writable
++  else if (refrences == 1){
++    *pte |= PTE_W; //writable
++    *pte &= ~PTE_COW;
++    lcr3(V2P(p->pgdir)); 
++  }
++  else{
++    cprintf("vm.c: handle COW write fault: PID %d: about to panic on page va 0x%x , *pte= 0x%x pysical address=0x%x ref =%d\n",myproc()->pid,a,*pte, V2P(v),refrences);
++    panic("vm.c: handle COW write fault: pa ref < 1");
++  }
++
++}
++
+ 
+ // Set up CPU's kernel segment descriptors.
+ // Run once on entry on each CPU.
+@@ -68,9 +723,28 @@ mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm)
+   for(;;){
+     if((pte = walkpgdir(pgdir, a, 1)) == 0)
+       return -1;
+-    if(*pte & PTE_P)
++    if(*pte & PTE_P){
++      if(0){
++        cprintf("vm.c: mappages: ");
++        // if(myproc() != 0) cprintf("PID %d :",myproc()->pid);
++        // else cprintf("myproc() == 0 :");
++        struct proc *p=procOfpgdir(pgdir);
++        if(p != 0) cprintf("p->pid of pgdir %d :",p->pid);
++        else cprintf("no proc connected to pgdir :");
++        cprintf("va=0x%x, *pte = 0x%x, about to panic\n",a,*pte);
++      }
+       panic("remap");
++    }
+     *pte = pa | perm | PTE_P;
++    if(0){
++      cprintf("vm.c: mappages: ");
++      // if(myproc() != 0) cprintf("PID %d :",myproc()->pid);
++      // else cprintf("myproc() == 0 :");
++      struct proc *p=procOfpgdir(pgdir);
++      if(p != 0) cprintf("p->pid of pgdir %d :",p->pid);
++      else cprintf("no proc connected to pgdir :");
++      cprintf("va=0x%x, *pte = 0x%x\n",a,*pte);
++    }
+     if(a == last)
+       break;
+     a += PGSIZE;
+@@ -186,7 +860,12 @@ inituvm(pde_t *pgdir, char *init, uint sz)
+ 
+   if(sz >= PGSIZE)
+     panic("inituvm: more than a page");
+-  mem = kalloc();
++  if(COW)
++    mem=kallocWithRef();
++  else
++    mem = kalloc();
++    
++  
+   memset(mem, 0, PGSIZE);
+   mappages(pgdir, 0, PGSIZE, V2P(mem), PTE_W|PTE_U);
+   memmove(mem, init, sz);
+@@ -221,17 +900,56 @@ loaduvm(pde_t *pgdir, char *addr, struct inode *ip, uint offset, uint sz)
+ int
+ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
+ {
++  int defineNONE = 0;
++  #ifdef NONE
++    defineNONE=1;
++  #endif
++
+   char *mem;
+   uint a;
+-
++  struct proc* p=procOfpgdir(pgdir);
++  if(1 && DEBUG && isValidUserProc(p) && myproc() !=0 ) cprintf("vm.c: allocuvm: PID %d enter allocuvm with pgdir of p->pid %d\n",myproc()->pid,p->pid);
+   if(newsz >= KERNBASE)
+     return 0;
+   if(newsz < oldsz)
+     return oldsz;
+-
++  
+   a = PGROUNDUP(oldsz);
+-  for(; a < newsz; a += PGSIZE){
+-    mem = kalloc();
++  for(; a < newsz ; a += PGSIZE){
++    // the section inside the if
++    // doesnt apply on kernal and PID <= 2
++    if(isValidUserProc(p) && !defineNONE){
++      if( 0 ) cprintf("vm.c: allocuvm: PID %d is valid, checking for num of pages in memory\n",p->pid);
++      //checks if there are already 16 pages in pysc memory
++      if(p->pagesInMemory == MAX_PSYC_PAGES){
++        if(1 && DEBUG) cprintf("vm.c: allocuvm: PID %d has MAX_PSYC_PAGES (p->pagesInMemory = %d) pages in memory, swaping one page out\n",p->pid,p->pagesInMemory);
++        //swap out 1 page to free space for the new one
++        if(swapOut(p) == -1){
++          // if swap failed, act as the all allocuvm failed.
++          cprintf("vm.c: allocuvm: failed to swap page out of PID:%d\n",p->pid);
++          panic("vm.c: allocuvm: failed to swap page out");
++          deallocuvm(pgdir, newsz, oldsz);
++          return 0;
++        }
++      }
++      //checks if process exceed 16 pages in memory
++      else if(p->pagesInMemory > MAX_PSYC_PAGES){
++        cprintf("vm.c: allocuvm: PID %d: has %d pages in pysical memory counter",p->pid,p->pagesInMemory);
++        panic("vm.c: allocuvm: p is valid but has more than 16 pages");
++      }
++      //if process doesnt have 16 pages or more, it proceed.
++    }
++
++    if(COW) 
++      mem = kallocWithRef();
++    else
++      mem = kalloc();
++
++    //checks if p is initialized
++    // if it does, increase the pages count of the process
++    // we do it here because de
++    
++    
+     if(mem == 0){
+       cprintf("allocuvm out of memory\n");
+       deallocuvm(pgdir, newsz, oldsz);
+@@ -241,9 +959,31 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
+     if(mappages(pgdir, (char*)a, PGSIZE, V2P(mem), PTE_W|PTE_U) < 0){
+       cprintf("allocuvm out of memory (2)\n");
+       deallocuvm(pgdir, newsz, oldsz);
+-      kfree(mem);
++      if(COW)
++        kDecRef(mem);
++      else
++        kfree(mem);
+       return 0;
+     }
++     //if successfuly allocat the page and p-Pid > 2 update the coresponding entry
++     
++    if(isValidUserProc(p) && !defineNONE){
++      if(1 && DEBUG) cprintf("vm.c: allocuvm: PID %d:  about to pushToMemoryPagesArray va =0x%x\n",p->pid,a);
++      if(pushToMemoryPagesArray(p,a) <0 ){
++        panic("vm.c: allocuvm: failed to push page to memory pages array");
++      }
++    }
++    else if(p != 0 && !defineNONE){
++      //increase init and shel proc pages counter
++       p->pagesInMemory++;
++       if(1 && DEBUG) cprintf("vm.c: allocuvm: PID %d added page(0x%x) to memory, pages in memory=%d\n",p->pid,a,p->pagesInMemory);
++    }
++    
++  }
++  if(1 && DEBUG && p != 0) cprintf("vm.c: allocuvm: PID %d exit allocuvm ,p->pagesInMemory=%d, p->pagesInSwap=%d\n",p->pid,p->pagesInMemory,p->pagesInSwap);
++  if(1 && DEBUG && p!=0 && p->pid > 2 && !defineNONE){
++    printPagesInSwap(p);
++    pritntProcMemoryPages(p);
+   }
+   return newsz;
+ }
+@@ -255,11 +995,26 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
+ int
+ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
+ {
++  int defineNONE = 0;
++  #ifdef NONE
++    defineNONE=1;
++  #endif
++
+   pte_t *pte;
+   uint a, pa;
++  
++  struct proc* p =procOfpgdir(pgdir);
++  if(DEBUG){
++    if(1 && p != 0) cprintf("vm.c: deallocuvm: PID %d enter deallocuvm p->pid=%d, pages in memory=%d, p->pagesInSwap = %d\n",myproc()->pid,p->pid,p->pagesInMemory,p->pagesInSwap);
++    if(1 && p != 0) printPagesInSwap(p);
++    if(1 && p != 0) pritntProcMemoryPages(p);
++  }
++  
+ 
+-  if(newsz >= oldsz)
++  if(newsz >= oldsz){
++    if(1 && DEBUG && p != 0) cprintf("vm.c: deallocuvm: PID %d exit deallocuvm BECAUSE newsz >= oldsz\n",p->pid);
+     return oldsz;
++  }
+ 
+   a = PGROUNDUP(newsz);
+   for(; a  < oldsz; a += PGSIZE){
+@@ -271,10 +1026,38 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
+       if(pa == 0)
+         panic("kfree");
+       char *v = P2V(pa);
+-      kfree(v);
++      if(COW){
++        //if there is only one refrence - can be deleted
++        kDecRef(v);   
++      }else{
++        kfree(v);
++      }
++      //decrease the pages count if p is initialized
++      // and the page is present
++      if(isValidUserProc(p) && !defineNONE)
++        removePageFromMemory(p,a);
++      else if(p != 0 && !defineNONE){
++        p->pagesInMemory--;
++        if(1 && DEBUG) cprintf("vm.c: deallocuvm: PID %d removed page(0x%x) from memory, pages in memory=%d\n",p->pid,a,p->pagesInMemory);
++      }
++      *pte = 0;
++    }
++    // checks if the page is in swap
++    else if((*pte & PTE_PG) && !defineNONE){
++      // if the page is in swap clear the swap
++      if(1 && DEBUG) cprintf("vm.c: deallocuvm: PID %d PTE_P is off, PTE_PG is on for address 0x%x.\n",p->pid,a);
++      int index = findInSwap(p,a);
++      if(index < 0)
++        cprintf("vm.c: deallocuvm: PTE_P is off, PTE_PG is on but couldnt find page in p->swapPages.\n");
++      else{
++        //deleteFromSwap(p,index);
++        removeFromPagesInSwap(p,index);
++      }
++      // clearing pte flags
+       *pte = 0;
+     }
+   }
++  if(1 && DEBUG && p != 0) cprintf("vm.c: deallocuvm: PID %d exit deallocuvm\n",p->pid);
+   return newsz;
+ }
+ 
+@@ -287,6 +1070,7 @@ freevm(pde_t *pgdir)
+ 
+   if(pgdir == 0)
+     panic("freevm: no pgdir");
++  if(1 && DEBUG) cprintf("vm.c: freevm: PID %d about to deallocuvm \n",myproc()->pid);
+   deallocuvm(pgdir, KERNBASE, 0);
+   for(i = 0; i < NPDENTRIES; i++){
+     if(pgdir[i] & PTE_P){
+@@ -310,6 +1094,59 @@ clearpteu(pde_t *pgdir, char *uva)
+   *pte &= ~PTE_U;
+ }
+ 
++
++pde_t*
++cowuvm(pde_t *pgdir, uint sz)
++{
++  pde_t *d;
++  pte_t *pte;
++  uint pa, i, flags;
++
++
++  if((d = setupkvm()) == 0)
++    return 0;
++  for(i = 0; i < sz; i += PGSIZE){
++    if((pte = walkpgdir(pgdir, (void *) i, 0)) == 0)
++      panic("cowuvm: pte should exist");
++    if(*pte & PTE_P){
++      //clear PTE_W and put PTE_COW
++      *pte |= PTE_COW;
++      *pte &= ~PTE_W;
++      pa = PTE_ADDR(*pte);
++      flags = PTE_FLAGS(*pte);
++      lcr3(V2P(pgdir)); //reinstall the page table
++      // if((mem = kalloc()) == 0)
++      //   goto bad;
++      // memmove(mem, (char*)P2V(pa), PGSIZE);
++      if(mappages(d, (void*)i, PGSIZE, pa, flags) < 0) {
++        goto bad;
++      }
++      char *v=P2V(pa);
++      kIncRef(v);
++    }
++    //copy pte of page in swapFile
++    else if(*pte & PTE_PG){
++      pa = -1;// an address in the end of KERNBASE which is imposible to reach for the user
++      flags = PTE_FLAGS(*pte);
++      //if page is in swap, just copy its flags
++      if(mappages(d, (void*)i, PGSIZE, pa, flags) < 0) {
++        goto bad;
++      }
++    }
++    else{
++      panic("cowuvm: page not present");
++    }
++
++  }
++  lcr3(V2P(pgdir));
++  return d;
++
++bad:
++  freevm(d);
++  lcr3(V2P(pgdir));
++  return 0;
++}
++
+ // Given a parent process's page table, create a copy
+ // of it for a child.
+ pde_t*
+@@ -329,6 +1166,8 @@ copyuvm(pde_t *pgdir, uint sz)
+       panic("copyuvm: page not present");
+     pa = PTE_ADDR(*pte);
+     flags = PTE_FLAGS(*pte);
++    
++
+     if((mem = kalloc()) == 0)
+       goto bad;
+     memmove(mem, (char*)P2V(pa), PGSIZE);
+@@ -337,10 +1176,12 @@ copyuvm(pde_t *pgdir, uint sz)
+       goto bad;
+     }
+   }
++  lcr3(V2P(pgdir));
+   return d;
+ 
+ bad:
+   freevm(d);
++  lcr3(V2P(pgdir));
+   return 0;
+ }
+ 

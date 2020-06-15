@@ -12,7 +12,7 @@ typedef uint pde_t;
 #define OCCUPIED 1
 #define UNOCCUPIED 0
 #define COW 1//cow
-#define DEBUG 0
+#define DEBUG 1
 #define KDEBUG 0
 
 
